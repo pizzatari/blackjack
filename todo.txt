@@ -1,0 +1,59 @@
+TODO List
+---------
+
+Bugs:
+    * No double down option given on 2nd split hand (P0). The option
+      was offered and taken on 1st split hand (P1).
+    * Inactive split hand occasionally flickers in color.
+        - flickers when gamestate = 11 (player set flags)
+
+New Rules:
+    * consider implementing 5-card Charlie.
+      https://blackjackdoc.com/5-card-charlie-blackjack-rule.htm
+
+Animation:
+    * Consider re-implementing the animation queue using the task queue.
+
+Logic:
+    * Bug: Hand was 7,7 then split to:
+      Hand 1: 7,8,10 (25) - bust
+      Hand 2: 7,7,9 (23) - bust
+      The dealer dealt until 22!
+
+User Interface:
+    * Make denominations reflect the number of player chips
+
+Done:
+    * Re-shuffle the cards when the number of decks change.
+    * DealCard is not correctly restricting the dealt cards to the number of decks.
+    * Expanded task data structures from a nibble to a byte to support
+      more than 15 tasks.
+    * Rewrote the kernel to release 12 bytes of RAM  
+        - The new kernel uses a single buffer for graphic pointers instead of two.
+        - This required interlacing pointer assignment inside the card rendering.
+        - The difficulty was finding an efficient way to render the gap space
+          between the rank and suit during the card flipping animation.
+    * Split Hit and Stay into separate menu options
+    * Changed input handling to make the trigger button select menu actions.
+      This allows multiple hands to be played by only pressing the fire button.
+      Pushing/pulling the joystick for hit and stay is still supported.
+    * Moved prompts to middle of the screen
+    * Implemented selection of 1, 2, and 4 decks.
+    * Implemented options display on betting screen showing selected game options.
+    * Implemented a new pseudorandom generator.
+    * The kernel stack got very close to the end allocated memory. Converted
+      some subroutines to be inline.
+    * On opening deal, show the face down card until it is actually dealt.
+    * Bug: Hole card doesn't flip animate when dealer wins with a blackjack.
+    * Bug: On a 21 push, status displays Winner momentarily before displaying Push 
+    * Bug: On blackjack push, status displays BlackJack! but plays Push sound clip
+    * Bug: Winner! message occasionally flickers.
+    * Fixed betting screen glitch on the 1st frame, which momentarily showed
+      graphics in wrong positions.
+    * Expanded the sound driver to be support playing two sound clips.
+    * player score momentarily shows wrong score when shifting cards off.
+        - 5, A, A, 2, 3, 4, 8 (shows 16 -> 21 -> 24)
+    * BUG: Bank1.DealCard has a severe flaw. Discarded cards are being dealt
+      because the SearchDiscardPile routine is not returning a new card
+      and DealCard is ignoring it.
+

@@ -1,0 +1,28 @@
+AnteSprite
+AnteSprite0
+	dc.b #%11001101
+	dc.b #%11001101
+	dc.b #%11001101
+	dc.b #%11111101
+	dc.b #%11001100
+	dc.b #%11111100
+	dc.b #%01111000
+AnteSprite1
+	dc.b #%00100101
+	dc.b #%00100101
+	dc.b #%10100101
+	dc.b #%01101110
+	dc.b #%00000100
+	dc.b #%00000000
+	dc.b #%00000000
+AnteSprite2
+	dc.b #%11100100
+	dc.b #%10000000
+	dc.b #%01100100
+	dc.b #%11100110
+	dc.b #%00010011
+	dc.b #%00010011
+	dc.b #%00001110
+AnteSprite3 SET BlankSprite
+AnteSprite4 SET BlankSprite
+AnteSprite5 SET BlankSprite

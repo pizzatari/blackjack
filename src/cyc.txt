@@ -1,0 +1,3 @@
+    lda Var     ; 3 (3)
+    sta GRP0    ; 3 (6)
+    lda Data,y  ;  ;   4      (10) 1 (4)

@@ -3023,7 +3023,7 @@ Bank2_ClearEvents SUBROUTINE
     sta JoyRelease
     rts
 
-    include "bank2/lib/task-8bit.asm"
+    include "bank2/task-8bit.asm"
 
     ; define procedures common to multiple banks
     BANK_PROCS 2

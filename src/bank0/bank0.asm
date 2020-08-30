@@ -1382,8 +1382,8 @@ Bank0_MessagePalette
     dc.b $3e, $3c, $ee, $ee, $ee, $ec, $ea
     dc.b $2e, $3e, $3c, $3a, $fe, $ee, $1e, $de
 
-    include "bank0/gfx/digits.asm"
-    include "bank0/gfx/betting-menu.asm"
+    include "bank0/digits.asm"
+    include "bank0/betting-menu.asm"
 
     IF >BEGIN != >*
         ECHO "(4) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
@@ -1399,16 +1399,16 @@ Bank0_MessagePalette
     ORG BANK0_ORG + $d00
     RORG BANK0_RORG + $d00
 
-    include "bank0/dat/title-logo-48.sp"
+    include "bank0/title-logo-48.gfx"
 
     ORG BANK0_ORG + $e00
     RORG BANK0_RORG + $e00
 
-    include "bank0/dat/title-copy-48.sp"
+    include "bank0/title-copy-48.gfx"
 
     ALIGN 256, FILLER_CHAR
-    include "bank0/dat/title-menu-48.sp"
-    include "bank0/dat/prompts-48.sp"
+    include "bank0/title-menu-48.gfx"
+    include "bank0/prompts-48.gfx"
 
     ; horizontal positioning data
     ORG BANK0_ORG + $ff6-BS_SIZEOF-$f

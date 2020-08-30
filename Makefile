@@ -2,41 +2,46 @@ ASM			= dasm
 M4			= m4
 PERL		= perl
 FIND		= find
-MAKE_SPRITE = ./bin/make-big-sprite
+MAKE_SPRITE = ./bin/make-sprite
+MAKE_PFIELD = ./bin/make-playfield
 
-FLAGS		= -f3 -l"$*.lst" -s"$*.sym" 
+ASM_FLAGS   = -v0 -f3 -l"$*.lst" -s"$*.sym" 
 
-DEPS_ASM	= $(wildcard ./bank?/*.asm) $(wildcard ./lib/*.asm)
-DEPS_M4		= $(wildcard ./bank?/*.m4) $(wildcard ./lib/*.m4)
-DEPS_DAT	= $(wildcard ./bank?/*.dat) $(wildcard ./dat/*.dat)
-DEPS_SPR	= $(wildcard ./bank?/*.spr) $(wildcard ./dat/*.spr)
-DEPS_GFX	= $(DEPS_DAT:.dat=.gfx)
+DEPS_ASM	= $(wildcard ./lib/*.asm) $(wildcard ./gfx/*.asm) $(wildcard bank?/*.asm)
+DEPS_H		= $(wildcard ./include/*.h)
+
+DEPS_M4		= $(wildcard ./lib/*.m4)
 DEPS_S		= $(DEPS_M4:.m4=.s)
+
+DEPS_MSP	= $(wildcard ./dat/*.msp) $(wildcard ./bank?/dat/*.msp)
+DEPS_SP		= $(DEPS_MSP:.msp=.sp)
+
+DEPS_MPF	= $(wildcard ./dat/*.mpf)
+DEPS_PF		= $(DEPS_MPF:.mpf=.pf)
 
 TARGET		= blackjack.bin
 
-all: $(TARGET)
+.PHONY: all
+all: $(TARGET) 
 
-$(TARGET): $(TARGET:.bin=.asm) $(DEPS_ASM) $(DEPS_DAT) $(DEPS_GFX) \
-	$(DEPS_SPR) $(DEPS_M4) $(DEPS_S)
+$(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 
-# .asm to .bin
-%.bin: %.asm $<
-	$(ASM) "$<" $(FLAGS) -o"$@"
+%.bin: %.asm
+	$(ASM) "$<" $(ASM_FLAGS) -o"$@"
 
-# .dat graphics data to .gfx
-%.gfx: %.dat $<
-	$(PERL) $(MAKE_SPRITE) "$<"
+%.sp: %.msp $<
+	$(PERL) $(MAKE_SPRITE) "$<" -o"$@"
 
-# .m4 to .s
+%.pf: %.mpf
+	$(PERL) $(MAKE_PFIELD) "$<" > $@
+
 %.s: %.m4 $<
 	$(M4) "$<" > "$@"
 
-# .s to .bin
 %.bin: %.s $<
-	$(ASM) "$<" $(FLAGS) -o"$@"
+	$(ASM) "$<" $(ASM_FLAGS) -o"$@"
 
 .PHONY: clean
 clean:
-	rm -rf *.bin *.lst *.sym *.s *.gfx gfx/*.gfx bank[0-9]/*.gfx
+	rm -v -f *.bin *.lst *.sym *.s *.pf *.sp dat/*.pf dat/*.sp bank0/*.sp
 

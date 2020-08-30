@@ -1856,7 +1856,7 @@ Bank3_Sequences
         ECHO "(5) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
     ENDIF
 
-    include "bank3/gfx/help.asm"        ; must reside within a single page
+    include "bank3/help.asm"            ; must reside within a single page
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Clears and initializes the queue.
@@ -1975,13 +1975,13 @@ AnimationTick SUBROUTINE
 .Return
     rts
 
-    include "bank3/gfx/options.asm"
-    include "bank3/gfx/sprites3.asm"
+    include "bank3/options.asm"
+    include "bank3/sprites3.asm"
 
 ; -----------------------------------------------------------------------------
     ORG BANK3_ORG + $b00
     RORG BANK3_RORG + $b00
-    include "bank3/gfx/sprites1.asm"
+    include "bank3/sprites1.asm"
 
 ; -----------------------------------------------------------------------------
     ORG BANK3_ORG + $c00
@@ -1989,7 +1989,7 @@ AnimationTick SUBROUTINE
 
 BEGIN SET *
     ; sprites2.h contains chips, denomination, and dashboard sprites
-    include "bank3/gfx/sprites2.asm"    ; must reside within a single page
+    include "bank3/sprites2.asm"        ; must reside within a single page
 
     IF >BEGIN != >*
         ECHO "(1) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
@@ -2059,7 +2059,7 @@ Bank3_PromptMessagesLSB
     ORG BANK3_ORG + $d00
     RORG BANK3_RORG + $d00
 
-    include "bank3/dat/prompts-48.sp"  ; must not cross a page boundary
+    include "bank3/prompts-48.gfx"  ; must not cross a page boundary
 
 Bank3_LeftArrow
     dc.b %00001100
@@ -2189,7 +2189,7 @@ Bank3_CardToSpriteOffset            ; maps card position to sprite position
     ORG BANK3_ORG + $f00
     RORG BANK3_RORG + $f00
 
-    include "bank3/dat/messages-48.sp" ; must not cross a page bondary
+    include "bank3/messages-48.gfx" ; must not cross a page bondary
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures

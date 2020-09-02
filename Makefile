@@ -13,10 +13,10 @@ DEPS_H		= $(wildcard ./include/*.h)
 DEPS_M4		= $(wildcard ./lib/*.m4)
 DEPS_S		= $(DEPS_M4:.m4=.s)
 
-DEPS_MSP	= $(wildcard ./dat/*.msp) $(wildcard ./bank?/dat/*.msp)
+DEPS_MSP	= $(wildcard ./gen/*.msp) $(wildcard ./bank?/gen/*.msp)
 DEPS_SP		= $(DEPS_MSP:.msp=.sp)
 
-DEPS_MPF	= $(wildcard ./dat/*.mpf)
+DEPS_MPF	= $(wildcard ./gen/*.mpf)
 DEPS_PF		= $(DEPS_MPF:.mpf=.pf)
 
 TARGET		= blackjack.bin
@@ -43,5 +43,5 @@ $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 
 .PHONY: clean
 clean:
-	rm -v -f *.bin *.lst *.sym *.s *.pf *.sp dat/*.pf dat/*.sp bank0/*.sp
-
+	find . -iname '*.bin' -or -iname '*.lst' -or -iname '*.sym' -or -iname '*.pf' -or -iname '*.sp' \
+		-exec rm -fv {} +

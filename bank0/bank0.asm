@@ -1399,16 +1399,16 @@ Bank0_MessagePalette
     ORG BANK0_ORG + $d00
     RORG BANK0_RORG + $d00
 
-    include "bank0/dat/title-logo-48.sp"
+    include "bank0/gen/title-logo-48.sp"
 
     ORG BANK0_ORG + $e00
     RORG BANK0_RORG + $e00
 
-    include "bank0/dat/title-copy-48.sp"
+    include "bank0/gen/title-copy-48.sp"
 
     ALIGN 256, FILLER_CHAR
-    include "bank0/dat/title-menu-48.sp"
-    include "bank0/dat/prompts-48.sp"
+    include "bank0/gen/title-menu-48.sp"
+    include "bank0/gen/prompts-48.sp"
 
     ; horizontal positioning data
     ORG BANK0_ORG + $ff6-BS_SIZEOF-$f

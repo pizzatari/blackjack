@@ -2059,7 +2059,7 @@ Bank3_PromptMessagesLSB
     ORG BANK3_ORG + $d00
     RORG BANK3_RORG + $d00
 
-    include "bank3/dat/prompts-48.sp"  ; must not cross a page boundary
+    include "bank3/gen/prompts-48.sp"  ; must not cross a page boundary
 
 Bank3_LeftArrow
     dc.b %00001100
@@ -2189,7 +2189,7 @@ Bank3_CardToSpriteOffset            ; maps card position to sprite position
     ORG BANK3_ORG + $f00
     RORG BANK3_RORG + $f00
 
-    include "bank3/dat/messages-48.sp" ; must not cross a page bondary
+    include "bank3/gen/messages-48.sp" ; must not cross a page bondary
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures

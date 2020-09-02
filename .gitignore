@@ -1,10 +1,10 @@
-
 *.lst
 *.sym
+*.swp
+*.old
+*.png
 art/
 doc/
 old/
 bank?/gfx.old/
 bank?/old/
-*.old
-*.png

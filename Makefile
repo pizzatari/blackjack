@@ -7,7 +7,8 @@ MAKE_PFIELD = ./bin/make-playfield
 
 ASM_FLAGS   = -v0 -f3 -l"$*.lst" -s"$*.sym" 
 
-DEPS_ASM	= $(wildcard ./lib/*.asm) $(wildcard ./gfx/*.asm) $(wildcard bank?/*.asm)
+DEPS_ASM	= $(wildcard ./lib/*.asm) $(wildcard ./gfx/*.asm) \
+				$(wildcard bank?/*.asm) $(wildcard bank?/gfx/*.asm)
 DEPS_H		= $(wildcard ./include/*.h)
 
 DEPS_M4		= $(wildcard ./lib/*.m4)
@@ -16,7 +17,7 @@ DEPS_S		= $(DEPS_M4:.m4=.s)
 DEPS_MSP	= $(wildcard ./gen/*.msp) $(wildcard ./bank?/gen/*.msp)
 DEPS_SP		= $(DEPS_MSP:.msp=.sp)
 
-DEPS_MPF	= $(wildcard ./gen/*.mpf)
+DEPS_MPF	= $(wildcard ./gen/*.mpf) $(wildcard ./bank?/gen/*.mpf)
 DEPS_PF		= $(DEPS_MPF:.mpf=.pf)
 
 TARGET		= blackjack.bin

@@ -1,7 +1,7 @@
 ; -----------------------------------------------------------------------------
 ; Author:   Edward Gilmour
 ; Date:     July 2018
-; Version:  0.4 (beta)
+; Version:  0.92 (beta)
 ; Game:     Black Jack Theta VIII for the Atari 2600
 ;
 ; 4 banks (4 KB each):
@@ -17,7 +17,7 @@
 ;
 ; Each bank has duplicated sections:
 ;   $*000:      reset handler
-;   $*ff6:      hot spots
+;   $*ff6:      bankswitching hot spots
 ;   $*ffa:      interrupt handlers
 ;
 ; Betting screen sections:
@@ -74,11 +74,15 @@ BALLAST_ON                  = 0
     ENDIF
 
     LIST OFF
-    include "lib/vcs.h"
-    include "lib/macro.h"
-    include "lib/defines.asm"
+    include "include/debug.h"
+    include "include/defines.h"
+    include "include/draw.h"
+    include "include/macro.h"
+    include "include/screen.h"
+    include "include/time.h"
+    include "include/vcs.h"
+    include "sys/colors.h"
     include "lib/macros.asm"
-    include "lib/screen.asm"
     include "lib/draw.asm"
     include "lib/bankswitch.asm"
     include "lib/bankprocs.asm"
@@ -149,7 +153,9 @@ POPUP_HEIGHT                = 14
 TITLE_LOGO_HEIGHT           = 42
 TITLE_EDITION_HEIGHT        = 15
 TITLE_MENU_HEIGHT           = 12
-TITLE_COPYRIGHT_HEIGHT      = 19
+;TITLE_COPYRIGHT_HEIGHT      = 19
+TITLE_COPY_HEIGHT           = 7
+TITLE_NAME_HEIGHT           = 5
 
 ; Playfield and sprite options
 MSG_BAR_IDX                 = 0
@@ -213,24 +219,11 @@ PLAYER1_CHIPS_OFFSET        = NUM_CHIP_BYTES * PLAYER1_IDX
 
 NEW_PLAYER_CHIPS            = $1000     ; BCD value
 
-; Colors
-COLOR_BLACK                 = $00
-COLOR_BROWN                 = $C0
-COLOR_GRAY                  = $04
-COLOR_LGRAY                 = $06
-COLOR_LGREEN                = $C8
-COLOR_GREEN                 = $C4
-COLOR_DGREEN                = $C2
-COLOR_RED                   = $24
-COLOR_DRED                  = $22
-COLOR_PINK                  = $3E
-COLOR_WHITE                 = $0E
-COLOR_YELLOW                = $EE
 BG_COLOR                    = COLOR_GREEN
 PF_COLOR                    = COLOR_DGREEN
 CHIP_COLOR                  = COLOR_YELLOW
 CARD_COLOR                  = COLOR_WHITE
-CARD_INACTIVE_COLOR         = $06
+CARD_INACTIVE_COLOR         = COLOR_LGRAY
 
 ; -----------------------------------------------------------------------------
 ; Macros
@@ -629,8 +622,7 @@ Arg5                        SET LocalVars+6
 ; For scaline debugging
 ScanDebug SET PlayerCards+#5
 
-    ECHO "RAM used =", (* - $80)d, "bytes"
-    ECHO "RAM free =", (128 - (* - $80))d, "bytes" 
+    RAM_BYTES_USAGE
 
     SEG rom
 

@@ -1490,7 +1490,7 @@ Bank3_SetSpriteOptions SUBROUTINE
     sta VDELP1
     rts
 
-    MACRO_ROUTINES 3
+    SPRITE_POSITIONING 3
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Initializes graphics registers for a message bar.

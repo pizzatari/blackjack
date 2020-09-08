@@ -5,127 +5,6 @@
     RORG BANK0_RORG
 
 ; -----------------------------------------------------------------------------
-; Local macros
-; -----------------------------------------------------------------------------
-
-; -----------------------------------------------------------------------------
-; Desc:     Draws a 48 bit sprite with animated rainbow colors.
-; Inputs:   graphics vector
-;           Y register (sprite height - 1)
-; Outputs:
-; Notes:    P0 position=36; P1 position=59
-;
-;   ldy #HEIGHT-1
-;   DRAW_RAINBOW_GRAPHIC Graphic, Palette
-; -----------------------------------------------------------------------------
-; timer based version
-    MAC DRAW_RAINBOW_GRAPHIC
-.GFX_ADDR SET {1}
-
-.GFX0   SET {1}0
-.GFX1   SET {1}1
-.GFX2   SET {1}2
-.GFX3   SET {1}3
-.GFX4   SET {1}4
-.GFX5   SET {1}5
-
-    ; align kernel to the start of 2nd scan line
-    sta WSYNC
-    tya                 ; +2
-    sta CurrY           ; +3
-    SLEEP_56            ; +56
-
-.Loop
-    ;                     Cycles   Pixel    GRP0   GRP0A   GRP1   GRP1A
-    ; --------------------------------------------------------------------
-    ldy  CurrY          ; +3 (59)  192
-    lda  .GFX0,y        ; +4 (63)  207
-    sta  GRP0           ; +3 (66)  216      D1     --      --     --
-    lda  INTIM          ; +4 (70)
-    sta  COLUP0         ; +3 (73)
-    sta  COLUP1         ; +3 (76)
-    ; start of line ------------------------------------------------------
-    lda  .GFX1,y        ; +4 (4)    15
-    sta  GRP1           ; +3 (7)    24      D1     D1      D2     --
-    lda  .GFX2,y        ; +4 (11)   39
-    sta  GRP0           ; +3 (14)   48      D3     D1      D2     D2
-    lda  .GFX3,y        ; +4 (18)   63
-    sta  Gfx3           ; +3 (21)   72
-    lda  .GFX4,y        ; +4 (25)   87
-    tax                 ; +2 (27)   93
-    lda  .GFX5,y        ; +4 (31)  108
-    tay                 ; +2 (33)  114
-    lda  Gfx3           ; +3 (36)  123              !
-    sta  GRP1           ; +3 (39)  132      D3     D3      D4     D2!
-    stx  GRP0           ; +3 (42)  141      D5     D3!     D4     D4
-    sty  GRP1           ; +3 (45)  150      D5     D5      D6     D4!
-    sta  GRP0           ; +3 (48)  159      D4*    D5!     D6     D6
-    dec  CurrY          ; +5 (53)  174                             !
-    bpl  .Loop          ; +3 (56)  183
-    ENDM
-
-; stack based version
-    MAC DRAW_RAINBOW_GRAPHIC2
-.GFX_ADDR   SET {1}
-
-.GFX0   SET {1}0
-.GFX1   SET {1}1
-.GFX2   SET {1}2
-.GFX3   SET {1}3
-.GFX4   SET {1}4
-.GFX5   SET {1}5
-
-    sty CurrY
-
-    ; preload the stack with .PTRS+6 column of pixels
-    ldy #-1             ; +2
-.Preload
-    iny                 ; +2 (2)
-    lda .GFX3,y         ; +5 (7)
-    pha                 ; +3 (10)
-    cpy CurrY           ; +3 (13)
-    bcc .Preload        ; +3/2 (16)
-
-    ; align so that the firt GRP0A write lands on cpu cycle 41 (tia 123)
-    sta WSYNC
-    nop                 ; +2
-    ldy CurrY           ; +3
-    SLEEP_56            ; +56
-
-.Loop
-    ;                 Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    ; --------------------------------------------------------------------
-    ldy  CurrY          ; +3  59  192
-    lda  .GFX0,y        ; +4  63  207
-    sta  GRP0           ; +3  66  216      D1     --      --     --
-    lda  INTIM          ; +4  70
-    sta  COLUP0         ; +3  73
-    sta  COLUP1         ; +3  76
-    ; --------------------------------------------------------------------
-    ;                 Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    lda  .GFX1,y        ; +4   4   15
-    sta  GRP1           ; +3   7   24      D1     D1      D2     --
-    lda  .GFX2,y        ; +4  11   39
-    sta  GRP0           ; +3  14   48      D3     D1      D2     D2
-
-    lda  .GFX4,y        ; +4  18   87
-    tax                 ; +2  20   93
-    lda  .GFX5,y        ; +4  24  108
-    tay                 ; +2  26  114
-    pla                 ; +4  30  128
-
-    bit $0              ; +3  33
-    bit $0              ; +3  36
-
-    sta  GRP1           ; +3  39  132      D3     D3      D4     D2!
-    stx  GRP0           ; +3  42  141      D5     D3!     D4     D4
-    sty  GRP1           ; +3  45  150      D5     D5      D6     D4!
-    sta  GRP0           ; +3  48  159      D4*    D5!     D6     D6
-    dec  CurrY          ; +5  53  174                             !
-    bpl  .Loop          ; +3  56  183
-    ENDM
-
-; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
 ; Kernel
@@ -150,17 +29,6 @@ Bank0_Reset
     nop
     CLEAN_START
     cli
-
-#if 0
-    ; debugging RAM
-    lda #$de
-    ldx #$ff
-.def
-    sta $0,x
-    dex
-    cpx #$e6
-    bne .def
-#endif
 
 Bank0_Init
     jsr Bank0_InitGlobals
@@ -232,6 +100,14 @@ Bank0_TitleKernel
     SLEEP_LINES 17
 
     jsr Bank0_DrawCopyright
+    jsr Bank0_DrawCopyright2
+    SLEEP_LINES 5
+
+    lda #0
+    sta VDELP0
+    sta VDELP1
+    sta GRP0
+    sta GRP1
     SLEEP_LINES 20
 
     lda #0
@@ -278,14 +154,6 @@ Bank0_Overscan
     ;JUMP_BANK PROC_BANK2_INIT, 2
 
 .Continue
-#if 0
-    ; black border line
-    lda #$0
-    sta COLUBK
-    sta PF0
-    sta PF1
-    sta PF2
-#endif
 
     TIMER_WAIT
     sta WSYNC
@@ -384,8 +252,11 @@ Bank0_InitSpriteSpacing SUBROUTINE
     sta VDELP1
     rts
 
+    ALIGN 256, FILLER_CHAR
+    PAGE_BOUNDARY_SET
     ; Bank tailored subroutines from lib\macros.asm
-    MACRO_ROUTINES 0
+    SPRITE_POSITIONING 0
+    PAGE_BOUNDARY_CHECK "Bank0 position"
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw multi-color graphics for the title scren.
@@ -393,12 +264,33 @@ Bank0_InitSpriteSpacing SUBROUTINE
 ; Ouputs:
 ; -----------------------------------------------------------------------------
 BEGIN SET *
+#if 1
+Bank0_DrawCopyright SUBROUTINE
+    ldy #TITLE_COPY_HEIGHT-1
+    DRAW_RAINBOW_GRAPHIC Bank0_TitleCopyright
+    lda #0
+    sta GRP0
+    sta GRP1
+    sta GRP0
+    rts
+#else
 Bank0_DrawCopyright SUBROUTINE
     ldy #TITLE_COPYRIGHT_HEIGHT-1
     DRAW_RAINBOW_GRAPHIC Bank0_TitleCopyright
     lda #0
     sta GRP0
     sta GRP1
+    sta GRP0
+    rts
+#endif
+
+Bank0_DrawCopyright2 SUBROUTINE
+    ldy #TITLE_NAME_HEIGHT-1
+    DRAW_RAINBOW_GRAPHIC Bank0_TitleName
+    lda #0
+    sta GRP0
+    sta GRP1
+    sta GRP0
     rts
 
     IF >BEGIN != >*
@@ -1395,6 +1287,8 @@ Bank0_MessagePalette
     SPRITE_OPTIONS 0
     SPRITE_COLORS 0
 
+    PAGE_BYTES_REMAINING
+
 ; -----------------------------------------------------------------------------
     ORG BANK0_ORG + $d00
     RORG BANK0_RORG + $d00
@@ -1404,11 +1298,23 @@ Bank0_MessagePalette
     ORG BANK0_ORG + $e00
     RORG BANK0_RORG + $e00
 
+Bank0_GraphicBlank
+    ds.b 19, 0              
+
+    PAGE_BOUNDARY_SET
     include "bank0/gen/title-copy-48.sp"
+    include "bank0/gen/title-copy.sp"
+    include "bank0/gen/title-name.sp"
+
+    PAGE_BOUNDARY_CHECK "Bank0 Copyright"
+    PAGE_BYTES_REMAINING
 
     ALIGN 256, FILLER_CHAR
+    PAGE_BOUNDARY_SET
     include "bank0/gen/title-menu-48.sp"
     include "bank0/gen/prompts-48.sp"
+    PAGE_BOUNDARY_CHECK "Bank0 Menu"
+    PAGE_BYTES_REMAINING
 
     ; horizontal positioning data
     ORG BANK0_ORG + $ff6-BS_SIZEOF-$f

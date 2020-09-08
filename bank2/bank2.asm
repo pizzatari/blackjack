@@ -3201,7 +3201,7 @@ Bank2_GameStateSound
     dc.b GS_PLAYER_PUSH, SOUND_ID_PUSH
     dc.b 0
 
-    MACRO_ROUTINES 2
+    SPRITE_POSITIONING 2
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures

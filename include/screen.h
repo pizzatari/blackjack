@@ -1,4 +1,4 @@
-    MAC MACRO_ROUTINES
+    MAC SPRITE_POSITIONING
     ; -----------------------------------------------------------------------------
     ; Desc:     Horizontally positions both P0 and P1 sprites in the same line
     ;           given positioning presets.
@@ -31,7 +31,7 @@ Bank{1}_PositionSprites SUBROUTINE
     sta HMOVE
     rts
 
-    ENDM    ; MACRO_ROUTINES
+    ENDM    ; SPRITE_POSITIONING
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Collection of sprite options.

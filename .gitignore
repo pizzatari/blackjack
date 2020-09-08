@@ -8,3 +8,5 @@ doc/
 old/
 bank?/gfx.old/
 bank?/old/
+saved/
+**/tmp/

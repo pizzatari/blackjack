@@ -149,9 +149,7 @@ Bank0_Overscan
     lda #GS_NEW_GAME
     sta GameState
 
-    ; disable intermission for now
     JUMP_BANK PROC_BANK1_INIT, 1
-    ;JUMP_BANK PROC_BANK2_INIT, 2
 
 .Continue
 

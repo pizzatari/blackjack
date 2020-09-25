@@ -244,12 +244,13 @@ Bank1_Init
     ldx #0
     lda #158
     sta ShipPosX
-    jsr Bank1_PosObject
-
+    jsr Bank1_HorizPosition
     ; position player 1
     ldx #1
     lda #151
-    jsr Bank1_PosObject
+    jsr Bank1_HorizPosition
+    sta WSYNC
+    sta HMOVE
 
     lda #SHIP_Y_START
     sta ShipPosY
@@ -382,8 +383,6 @@ Bank1_FrameStart
     sta NUSIZ1
     stx COLUPF
 
-    sta WSYNC
-
     ; when ship comes to a stop, show split foreground kernel
     lda ShipPosX
     cmp #SHIP_X_END
@@ -410,13 +409,13 @@ Bank1_FrameStart
     ; -------------------------------------------------------------------------
     ; overscan
     ; -------------------------------------------------------------------------
-    lda #TIME_OVERSCAN
-    sta TIM64T
-
     lda #%00000010
     sta VBLANK
     sta WSYNC
     inc FrameCtr
+
+    lda #TIME_OVERSCAN
+    sta TIM64T
 
     jsr SoundQueueTick
     jsr Bank1_ReadSwitches
@@ -734,6 +733,8 @@ Bank1_ShipMotionY
 
     ALIGN 256, FILLER_CHAR
 
+    HORIZ_POSITION_SUBS Bank1_
+/*
     HORIZ_POS_TABLE 1
 
 ; -----------------------------------------------------------------------------
@@ -749,6 +750,7 @@ Bank1_PosObject SUBROUTINE
     sta WSYNC
     sta HMOVE
     rts
+*/
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures

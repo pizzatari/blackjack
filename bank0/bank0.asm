@@ -91,32 +91,72 @@ Bank0_TitleKernel
     sta TIM64T
 
     jsr Bank0_DrawTitleGraphic
-    SLEEP_LINES 12
+    SLEEP_LINES 10
 
-    jsr Bank0_DrawTitleEdition
-    SLEEP_LINES 17
+    lda #COLOR_ORANGE
+    sta COLUP0
+    sta COLUP1
+    SLEEP_LINES 8
 
-    jsr Bank0_DrawTitleMenu
-    SLEEP_LINES 17
+    SET_6_POINTERS SpritePtrs, Bank0_TitleEdition
+    ldy #TITLE_EDITION_HEIGHT-1
+    jsr Draw6Sprite56
 
-    jsr Bank0_DrawCopyright
-    jsr Bank0_DrawCopyright2
-    SLEEP_LINES 5
+    SLEEP_LINES 10
 
-    lda #0
-    sta VDELP0
-    sta VDELP1
-    sta GRP0
-    sta GRP1
-    SLEEP_LINES 20
-
-    lda #0
-    sta VDELP0
-    sta VDELP1
-    sta GRP0
-    sta GRP1
+    lda #COLOR_WHITE
+    sta COLUP0
+    sta COLUP1
+    SET_6_POINTERS SpritePtrs, Bank0_TitleCards
+    ldy #TITLE_CARDS_HEIGHT-1
+    jsr Draw6Sprite56
 
     sta WSYNC
+    lda #0                      ; 2 (2)
+    sta GRP0                    ; 3 (5)
+    sta GRP1                    ; 3 (8)
+    sta GRP0                    ; 3 (11)
+    sta COLUP0                  ; 3 (14)
+    sta COLUP1                  ; 3 (17)
+    lda #<Bank0_MenuPalette     ; 2 (19)
+    sta TempPtr                 ; 3 (22)
+    lda #>Bank0_MenuPalette     ; 2 (24)
+    sta TempPtr+1               ; 3 (27)
+
+    SLEEP_LINES 5
+    SET_6_POINTERS SpritePtrs, Bank0_TitleMenu
+
+    ldy #TITLE_MENU_HEIGHT-1
+    jsr DrawColor6Sprite56
+
+    lda #COLOR_BLACK
+    sta COLUBK
+    sta COLUPF
+    sta GRP0
+    sta GRP1
+    sta GRP0
+    SLEEP_LINES 16
+
+    lda #COLOR_VIOLET
+    sta COLUP0
+    sta COLUP1
+
+    SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleCopyright
+    ldy #TITLE_COPY_HEIGHT-1
+    jsr Draw6Sprite56
+
+    SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleName
+    ldy #TITLE_NAME_HEIGHT-1
+    jsr Draw6Sprite56
+
+    lda #0
+    sta VDELP0
+    sta VDELP1
+    sta GRP0
+    sta GRP1
+    sta GRP0
+
+    SLEEP_LINES 10
 
     ; -------------------------------------------------------------------------
     ; overscan
@@ -210,31 +250,22 @@ Bank0_ClearSprites SUBROUTINE
 ; Inputs:   
 ; Ouputs:
 ; -----------------------------------------------------------------------------
-BEGIN SET *
+    PAGE_BOUNDARY_SET
+    include "lib/draw.asm"
+
 Bank0_DrawTitleGraphic SUBROUTINE
     ldy #TITLE_LOGO_HEIGHT-1
     DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
     rts
 
+#if 0
 Bank0_DrawTitleEdition SUBROUTINE
     ldy #TITLE_EDITION_HEIGHT-1
     DRAW_RAINBOW_GRAPHIC Bank0_TitleEdition
-    lda #0
-    sta GRP0
-    sta GRP1
     rts
+#endif
 
-Bank0_DrawTitleMenu SUBROUTINE
-    ldy #TITLE_MENU_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleMenu
-    lda #0
-    sta GRP0
-    sta GRP1
-    rts
-
-    IF >BEGIN != >*
-        ECHO "(1) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
-    ENDIF
+    PAGE_BOUNDARY_CHECK "(1) Title kernels"
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets sprite spacing gaps.
@@ -255,45 +286,6 @@ Bank0_InitSpriteSpacing SUBROUTINE
     ; Bank tailored subroutines from lib\macros.asm
     SPRITE_POSITIONING 0
     PAGE_BOUNDARY_CHECK "Bank0 position"
-
-; -----------------------------------------------------------------------------
-; Desc:     Draw multi-color graphics for the title scren.
-; Inputs:   
-; Ouputs:
-; -----------------------------------------------------------------------------
-BEGIN SET *
-#if 1
-Bank0_DrawCopyright SUBROUTINE
-    ldy #TITLE_COPY_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleCopyright
-    lda #0
-    sta GRP0
-    sta GRP1
-    sta GRP0
-    rts
-#else
-Bank0_DrawCopyright SUBROUTINE
-    ldy #TITLE_COPYRIGHT_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleCopyright
-    lda #0
-    sta GRP0
-    sta GRP1
-    sta GRP0
-    rts
-#endif
-
-Bank0_DrawCopyright2 SUBROUTINE
-    ldy #TITLE_NAME_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleName
-    lda #0
-    sta GRP0
-    sta GRP1
-    sta GRP0
-    rts
-
-    IF >BEGIN != >*
-        ECHO "(2) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
-    ENDIF
 
     ; Bank tailored subroutines from lib\bankprocs.asm
     BANK_PROCS 0
@@ -610,8 +602,8 @@ Bank0_BettingKernel SUBROUTINE
 ; GRP0:     0-14    0-12    1-13    1-13    0-12
 ;
 
-    ALIGN 256, FILLER_CHAR
-BEGIN SET *
+    ;ALIGN 256, FILLER_CHAR
+    PAGE_BOUNDARY_SET
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draws a multi-color message bar.
@@ -650,9 +642,7 @@ Bank0_Draw6Sprites SUBROUTINE
     DRAW_6_SPRITES SpritePtrs
     rts
 
-    IF >BEGIN != >*
-        ECHO "(3) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
-    ENDIF
+    PAGE_BOUNDARY_CHECK "(3) Kernels"
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Performs game IO during blank.
@@ -1260,24 +1250,26 @@ Bank0_ProcTableHi
     dc.b >SoundQueueClear
     dc.b >Bank2_Overscan
 
-; -----------------------------------------------------------------------------
-; Graphics
-; -----------------------------------------------------------------------------
-    ALIGN 256, FILLER_CHAR
-BEGIN SET *
-Bank0_BlankSprite
-    ds.b 12, 0
-
+    PAGE_BOUNDARY_SET
 Bank0_MessagePalette
     dc.b $3e, $3c, $ee, $ee, $ee, $ec, $ea
     dc.b $2e, $3e, $3c, $3a, $fe, $ee, $1e, $de
+Bank0_MenuPalette
+    dc.b $00, $06, $08, $0a, $0c, $0e
+    dc.b $0c, $0a, $08, $06, $04, $02
+    PAGE_BOUNDARY_SET "(1) Sprite data"
 
+; -----------------------------------------------------------------------------
+; Graphics
+; -----------------------------------------------------------------------------
+    ;ALIGN 256, FILLER_CHAR
+
+    PAGE_BOUNDARY_SET
+Bank0_BlankSprite
+    ds.b 12, 0
     include "bank0/gfx/digits.asm"
     include "bank0/gfx/betting-menu.asm"
-
-    IF >BEGIN != >*
-        ECHO "(4) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
-    ENDIF
+    PAGE_BOUNDARY_SET "(2) Sprite data"
 
     include "bank0/arithmetic.asm"
 

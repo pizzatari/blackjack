@@ -43,6 +43,12 @@ $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 %.bin: %.s $<
 	$(ASM) "$<" $(ASM_FLAGS) -o"$@"
 
+.PHONY: deploy
+deploy:
+	cp blackjack.bin blackjack.lst blackjack.sym /var/www/html/roms/
+	chmod ugo+r /var/www/html/roms/blackjack.bin
+	echo http://98.225.37.203/roms/blackjack.bin
+
 .PHONY: clean
 clean:
 	find . "(" -iname '*.bin' -or -iname '*.lst' -or -iname '*.sym' \

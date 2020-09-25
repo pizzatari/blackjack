@@ -1,4 +1,11 @@
 ; -----------------------------------------------------------------------------
+; Desc:     Defines positioning subroutines.
+; Param:    prefix string
+; Output:
+; -----------------------------------------------------------------------------
+    MAC HORIZ_POSITION_SUBS
+
+; -----------------------------------------------------------------------------
 ; Desc:     Positions an object horizontally using the Battlezone algorithm.
 ; Input:    A register (screen pixel position)
 ;           X register (object index: 0 to 4)
@@ -15,7 +22,7 @@
 ;               sta WSYNC
 ;               sta HMOVE
 ; -----------------------------------------------------------------------------
-HorizPosition SUBROUTINE
+{1}HorizPosition SUBROUTINE
     sec             ; 2 (2)
     sta WSYNC       ; 3 (5) 
 
@@ -34,10 +41,13 @@ HorizPosition SUBROUTINE
     ; position
     sta RESP0,X     ; 4 (23)            ; coarse position
     sta HMP0,X      ; 4 (27)            ; fine position
-    rts
+    sta WSYNC
+    rts             ; 6 (6)
+
+    IFCONST HORIZ_POSITION_EXTRAS
 
 ; performs horizontal positioning while drawing a background color
-HorizPositionBG SUBROUTINE  ; 6 (6)
+{1}HorizPositionBG SUBROUTINE  ; 6 (6)
     sec             ; 2 (8)
     sta WSYNC
     sty COLUBK      ; 3 (3)
@@ -59,7 +69,7 @@ HorizPositionBG SUBROUTINE  ; 6 (6)
 
 ; performs horizontal positioning while drawing a playfield pattern
 ; this must enter on or before cycle 62
-HorizPositionPF SUBROUTINE
+{1}HorizPositionPF SUBROUTINE
     sty PF0         ; 3 (65)
     sec             ; 2 (67)
     sty PF1         ; 3 (70)
@@ -80,3 +90,6 @@ HorizPositionPF SUBROUTINE
     sta HMP0,X      ; 4 (30)
     rts
 
+    ENDIF ; HORIZ_POSITION_EXTRAS
+
+    ENDM

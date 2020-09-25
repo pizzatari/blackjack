@@ -13,6 +13,15 @@ COLOR_DRED                  = $22
 COLOR_PINK                  = $3E
 COLOR_WHITE                 = $0E
 COLOR_YELLOW                = $EE
+COLOR_VIOLET                = $66
+COLOR_BLUE                  = $86
+COLOR_ORANGE                = $38
+
+BG_COLOR                    = COLOR_GREEN
+PF_COLOR                    = COLOR_DGREEN
+CHIP_COLOR                  = COLOR_YELLOW
+CARD_COLOR                  = COLOR_WHITE
+CARD_INACTIVE_COLOR         = COLOR_LGRAY
 
 #endif
 

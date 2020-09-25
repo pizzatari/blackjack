@@ -78,12 +78,13 @@ BALLAST_ON                  = 0
     include "include/defines.h"
     include "include/draw.h"
     include "include/macro.h"
+    include "include/position.h"
     include "include/screen.h"
     include "include/time.h"
+    include "include/util.h"
     include "include/vcs.h"
     include "sys/colors.h"
     include "lib/macros.asm"
-    include "lib/draw.asm"
     include "lib/bankswitch.asm"
     include "lib/bankprocs.asm"
     include "lib/horizpos.asm"
@@ -151,9 +152,9 @@ POPUP_HEIGHT                = 14
 
 ; Title screen sprite height
 TITLE_LOGO_HEIGHT           = 42
-TITLE_EDITION_HEIGHT        = 15
+TITLE_EDITION_HEIGHT        = 7
+TITLE_CARDS_HEIGHT          = 15
 TITLE_MENU_HEIGHT           = 12
-;TITLE_COPYRIGHT_HEIGHT      = 19
 TITLE_COPY_HEIGHT           = 7
 TITLE_NAME_HEIGHT           = 5
 
@@ -218,12 +219,6 @@ DEALER_CARDS_OFFSET         = NUM_VISIBLE_CARDS * DEALER_IDX
 PLAYER1_CHIPS_OFFSET        = NUM_CHIP_BYTES * PLAYER1_IDX
 
 NEW_PLAYER_CHIPS            = $1000     ; BCD value
-
-BG_COLOR                    = COLOR_GREEN
-PF_COLOR                    = COLOR_DGREEN
-CHIP_COLOR                  = COLOR_YELLOW
-CARD_COLOR                  = COLOR_WHITE
-CARD_INACTIVE_COLOR         = COLOR_LGRAY
 
 ; -----------------------------------------------------------------------------
 ; Macros

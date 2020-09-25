@@ -79,7 +79,7 @@ Bank0_VerticalBlank
     ; Title kernel
     ; -------------------------------------------------------------------------
 Bank0_TitleKernel
-    SLEEP_LINES 30
+    SLEEP_LINES 25
 
     ; cycle the logo color
     lda FrameCtr
@@ -96,7 +96,6 @@ Bank0_TitleKernel
     lda #COLOR_ORANGE
     sta COLUP0
     sta COLUP1
-    SLEEP_LINES 8
 
     SET_6_POINTERS SpritePtrs, Bank0_TitleEdition
     ldy #TITLE_EDITION_HEIGHT-1
@@ -123,7 +122,7 @@ Bank0_TitleKernel
     lda #>Bank0_MenuPalette     ; 2 (24)
     sta TempPtr+1               ; 3 (27)
 
-    SLEEP_LINES 5
+    SLEEP_LINES 17
     SET_6_POINTERS SpritePtrs, Bank0_TitleMenu
 
     ldy #TITLE_MENU_HEIGHT-1
@@ -1292,9 +1291,9 @@ Bank0_GraphicBlank
     ds.b 19, 0              
 
     PAGE_BOUNDARY_SET
+    include "bank0/gen/title-gfx-48.sp"
     include "bank0/gen/title-copy-48.sp"
-    include "bank0/gen/title-copy.sp"
-    include "bank0/gen/title-name.sp"
+    include "bank0/gen/title-name-48.sp"
 
     PAGE_BOUNDARY_CHECK "Bank0 Copyright"
     PAGE_BYTES_REMAINING

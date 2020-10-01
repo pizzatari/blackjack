@@ -85,9 +85,10 @@ Draw6Sprite56 SUBROUTINE
 ;           SpritePtrs (array of 6 pointers)
 ;           TempPtr (palette ptr)
 ; Outputs:
+; Notes:    Requires inverted GRP graphics.
 ; -----------------------------------------------------------------------------
-#if 1
 DrawColor6Sprite56 SUBROUTINE
+    ; mask sides
     lda #$ff                    ; 2 (2)
     sta WSYNC
     sta GRP0                    ; 3 (3)
@@ -97,12 +98,12 @@ DrawColor6Sprite56 SUBROUTINE
     sta PF1                     ; 3 (15)
     lda #%00000011              ; 2 (17)
     sta PF2                     ; 3 (20)
-    sta CTRLPF                  ; 3 (23)
-    ; --------------------------------------------------------------------
+    lda #%00000001              ; 2 (22)
+    sta CTRLPF                  ; 3 (25)
 
     ; preload the stack with SpritePtrs+6 column of pixels
-    sty Arg1                    ; 3 (33)
-    ldy #-1                     ; 2 (35)
+    sty Arg1                    ; 3 (28)
+    ldy #-1                     ; 2 (30)
 .Preload
     iny                         ; 2 (37)
     lda (SpritePtrs+6),y        ; 5 (42)
@@ -111,19 +112,17 @@ DrawColor6Sprite56 SUBROUTINE
     bcc .Preload                ; 3 (51)
 
     sta WSYNC
-    ldy Arg1                    ; +3 (3)
+    ldy Arg1                    ; 3 (3)
 .Loop
     ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
     ; ------------------------------------------------------------------------
     ldy Arg1                    ; 3 (65) (195)
     lda (SpritePtrs),y          ; 5 (70) (210)
     sta GRP0                    ; 3 (73) (219)      D1     --      --     --
-    sta WSYNC                   ; 3 (0) (0)
-
-    ; -----------------------------------------------------------------------
-    ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    lda (TempPtr),y             ; 5 (5) (15)
-    sta COLUBK                  ; 3 (8) (24)
+    sta WSYNC                   ; 3 (0)  (0)
+    ; ------------------------------------------------------------------------
+    lda (TempPtr),y             ; 5 (5)  (15)
+    sta COLUBK                  ; 3 (8)  (24)
 
     lda (SpritePtrs+2),y        ; 5 (13) (39)
     sta GRP1                    ; 3 (16) (48)      D1     D1      D2     --
@@ -134,29 +133,30 @@ DrawColor6Sprite56 SUBROUTINE
     tax                         ; 2 (31) (93)
     lda (SpritePtrs+10),y       ; 5 (36) (108)
     tay                         ; 2 (38) (114)
-    pla                         ; 4 (42) (126)                 !
+    pla                         ; 4 (42) (126)              !
 
-    sta GRP1                    ; 3 (45) (135)      D3     D3      D4     D2!
-    stx GRP0                    ; 3 (48) (144)      D5     D3!     D4     D4
-    sty GRP1                    ; 3 (51) (153)      D5     D5      D6     D4!
-    sta GRP0                    ; 3 (54) (162)      D4*    D5!     D6     D6
+    sta GRP1                    ; 3 (45) (135)     D3     D3      D4     D2!
+    stx GRP0                    ; 3 (48) (144)     D5     D3!     D4     D4
+    sty GRP1                    ; 3 (51) (153)     D5     D5      D6     D4!
+    sta GRP0                    ; 3 (54) (162)     D4*    D5!     D6     D6
     dec Arg1                    ; 5 (59) (177)                             !
     bpl .Loop                   ; 3 (62) (186)
 
-    sta WSYNC
-    ; --------------------------------------------------------------------
-    ; keep masking until end of scan line, then erase playfield
+    ; keep masking until end of scan line, then remove mask
     ;   PF0 = 11111111, PF1 = 11111111, PF2 = 11000000
-    lda #$ff                    ; 2 (62)
-    sta PF2                     ; 3 (65)
-    lda #0                      ; 2 (67)
-    sta CTRLPF                  ; 3 (70)
-    sta PF0                     ; 3 (73)
-    sta PF1                     ; 3 (0)
-    sta PF2                     ; 3 (3)
-    rts                         ; 6 (9)
-#else
-DrawColor6Sprite56 SUBROUTINE
+    ; --------------------------------------------------------------------
+    lda #$ff                    ; 2 (2)
+    sta WSYNC
+    sta PF2                     ; 3 (5)
+    lda #0                      ; 2 (7)
+    sta CTRLPF                  ; 3 (10)
+    sta PF0                     ; 3 (13)
+    sta PF1                     ; 3 (16)
+    sta PF2                     ; 3 (19)
+    rts                         ; 6 (25)
+
+#if 0
+DrawColor6Sprite56V2 SUBROUTINE
     sty Arg1
 
     ; preload the stack with SpritePtrs+6 column of pixels
@@ -181,7 +181,6 @@ DrawColor6Sprite56 SUBROUTINE
     sta GRP0                    ; 3  (72)  (216)       D1     --      --     --
     lda TempPtr,y               ; 4
     ; -----------------------------------------------------------------------
-    ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
     sta.w COLUP0                ; 4   (4)   (12) 
     sta COLUP1                  ; 3   (7)   (21) 
 

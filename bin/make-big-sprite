@@ -13,7 +13,7 @@ use constant NUM_BITS_PER_CHAR => 8;
 use constant NUM_BYTES => (NUM_PIXELS_WIDE/NUM_BITS_PER_CHAR);
 
 sub PrintUsage {
-	printf "Usage: %s [ -h -r {1|0} -b {0|1} -pt {0|1} -br {0|1} -bl label -dir out-dir] inputfile\n\n", basename($0);
+	printf "Usage: %s [ -h -r {1|0} -b {0|1} -pt {0|1} -br {0|1} -bl label -dir out-dir -H {1|0} ] inputfile\n\n", basename($0);
 
     print "Defaults:\n";
     print "    -r  1            : print reversed order (upside down)\n";
@@ -22,6 +22,7 @@ sub PrintUsage {
     print "    -br 0            : blank is reference only, no assignments\n";
     print "    -bl label        : override default blank with label\n";
     print "    -dir directory   : output gfx file in this directory\n\n";
+    print "    -H               : output sprite height definitions\n\n";
 
 	print "Example input data format:\n\n";
 
@@ -66,6 +67,7 @@ my $print_blanks = 0;
 my $print_pointer_table = 0;
 my $blank_label = DEFAULT_BLANK_LABEL;
 my $blank_ref = 0;
+my $print_height = 0;
 
 my %params = (
     "-o"    => \$out_file,
@@ -75,6 +77,7 @@ my %params = (
     "-pt"   => \$print_pointer_table,
     "-br"   => \$blank_ref,
     "-bl"   => \$blank_label,
+    "-H"    => \$print_height,
 );
 
 ParseArgs();
@@ -106,6 +109,10 @@ while(!eof($ifh)) {
     if ($blank_ref == 0) {
 	    print $ofh "$label$eol";
     }
+
+    #if ($print_height == 0) {
+        printf $ofh ("%s_HEIGHT = %d$eol", uc($label), scalar(@sp0_col));
+    #}
 
 	if ($print_blanks > 0 || CountOnes(@sp0_col) > 0) {
 		PrintSprite($ofh, "${label}0", @sp0_col);

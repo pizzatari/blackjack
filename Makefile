@@ -32,7 +32,7 @@ $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 	$(ASM) "$<" $(ASM_FLAGS) -o"$@"
 
 %.sp: %.sprite $<
-	$(PERL) $(MAKE_SPRITE) "$<" -o"$@"
+	$(PERL) $(MAKE_SPRITE) "$<" -o"$@" -H1
 
 %.pf: %.mpf
 	$(PERL) $(MAKE_PFIELD) "$<" > $@

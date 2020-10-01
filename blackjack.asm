@@ -152,11 +152,11 @@ POPUP_HEIGHT                = 14
 
 ; Title screen sprite height
 TITLE_LOGO_HEIGHT           = 42
-TITLE_EDITION_HEIGHT        = 7
+TITLE_EDITION_HEIGHT        = 12; 7
 TITLE_CARDS_HEIGHT          = 15
 TITLE_MENU_HEIGHT           = 12
-TITLE_COPY_HEIGHT           = 7
-TITLE_NAME_HEIGHT           = 5
+TITLE_COPY_HEIGHT           = 10; 7
+TITLE_NAME_HEIGHT           = 8; 5
 
 ; Playfield and sprite options
 MSG_BAR_IDX                 = 0

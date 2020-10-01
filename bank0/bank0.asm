@@ -79,7 +79,7 @@ Bank0_VerticalBlank
     ; Title kernel
     ; -------------------------------------------------------------------------
 Bank0_TitleKernel
-    SLEEP_LINES 25
+    SLEEP_LINES 26
 
     ; cycle the logo color
     lda FrameCtr
@@ -89,19 +89,9 @@ Bank0_TitleKernel
     clc
     adc #$e0
     sta TIM64T
-
     jsr Bank0_DrawTitleGraphic
-    SLEEP_LINES 10
 
-    lda #COLOR_ORANGE
-    sta COLUP0
-    sta COLUP1
-
-    SET_6_POINTERS SpritePtrs, Bank0_TitleEdition
-    ldy #TITLE_EDITION_HEIGHT-1
-    jsr Draw6Sprite56
-
-    SLEEP_LINES 10
+    SLEEP_LINES 20
 
     lda #COLOR_WHITE
     sta COLUP0
@@ -109,6 +99,23 @@ Bank0_TitleKernel
     SET_6_POINTERS SpritePtrs, Bank0_TitleCards
     ldy #TITLE_CARDS_HEIGHT-1
     jsr Draw6Sprite56
+
+    SLEEP_LINES 20
+
+    lda #COLOR_BLACK
+    sta COLUPF
+    ;lda #COLOR_ORANGE
+    sta COLUP0
+    sta COLUP1
+    lda #<Bank0_EditionPalette  ; 2 (19)
+    sta TempPtr                 ; 3 (22)
+    lda #>Bank0_EditionPalette  ; 2 (24)
+    sta TempPtr+1               ; 3 (27)
+
+    SET_6_POINTERS SpritePtrs, Bank0_TitleEdition
+    ldy #TITLE_EDITION_HEIGHT-1
+    ;jsr Draw6Sprite56
+    jsr DrawColor6Sprite56
 
     sta WSYNC
     lda #0                      ; 2 (2)
@@ -122,7 +129,7 @@ Bank0_TitleKernel
     lda #>Bank0_MenuPalette     ; 2 (24)
     sta TempPtr+1               ; 3 (27)
 
-    SLEEP_LINES 17
+    SLEEP_LINES 5
     SET_6_POINTERS SpritePtrs, Bank0_TitleMenu
 
     ldy #TITLE_MENU_HEIGHT-1
@@ -134,19 +141,33 @@ Bank0_TitleKernel
     sta GRP0
     sta GRP1
     sta GRP0
-    SLEEP_LINES 16
+    SLEEP_LINES 9
 
+#if 0
     lda #COLOR_VIOLET
     sta COLUP0
     sta COLUP1
+#endif
+
+    sta WSYNC
+    lda #0                      ; 2 (2)
+    sta GRP0                    ; 3 (5)
+    sta GRP1                    ; 3 (8)
+    sta GRP0                    ; 3 (11)
+    sta COLUP0                  ; 3 (14)
+    sta COLUP1                  ; 3 (17)
+    lda #<Bank0_NamePalette     ; 2 (19)
+    sta TempPtr                 ; 3 (22)
+    lda #>Bank0_NamePalette     ; 2 (24)
+    sta TempPtr+1               ; 3 (27)
 
     SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleCopyright
     ldy #TITLE_COPY_HEIGHT-1
-    jsr Draw6Sprite56
+    jsr DrawColor6Sprite56
 
     SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleName
     ldy #TITLE_NAME_HEIGHT-1
-    jsr Draw6Sprite56
+    jsr DrawColor6Sprite56
 
     lda #0
     sta VDELP0
@@ -155,7 +176,7 @@ Bank0_TitleKernel
     sta GRP1
     sta GRP0
 
-    SLEEP_LINES 10
+    SLEEP_LINES 8
 
     ; -------------------------------------------------------------------------
     ; overscan
@@ -243,28 +264,6 @@ Bank0_ClearSprites SUBROUTINE
     dey
     bpl .Loop
     rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Draw multi-color graphics for the title scren.
-; Inputs:   
-; Ouputs:
-; -----------------------------------------------------------------------------
-    PAGE_BOUNDARY_SET
-    include "lib/draw.asm"
-
-Bank0_DrawTitleGraphic SUBROUTINE
-    ldy #TITLE_LOGO_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
-    rts
-
-#if 0
-Bank0_DrawTitleEdition SUBROUTINE
-    ldy #TITLE_EDITION_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleEdition
-    rts
-#endif
-
-    PAGE_BOUNDARY_CHECK "(1) Title kernels"
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets sprite spacing gaps.
@@ -1254,55 +1253,81 @@ Bank0_MessagePalette
     dc.b $3e, $3c, $ee, $ee, $ee, $ec, $ea
     dc.b $2e, $3e, $3c, $3a, $fe, $ee, $1e, $de
 Bank0_MenuPalette
+Bank0_EditionPalette
     dc.b $00, $06, $08, $0a, $0c, $0e
     dc.b $0c, $0a, $08, $06, $04, $02
+Bank0_NamePalette
+    dc.b $00, $96, $98, $9a, $9c, $9e
+    dc.b $9c, $9a, $98, $96, $94, $92
+Bank0_CopyPalette
+    dc.b 0
     PAGE_BOUNDARY_SET "(1) Sprite data"
+
+; -----------------------------------------------------------------------------
+; Desc:     Draw multi-color graphics for the title scren.
+; Inputs:   
+; Ouputs:
+; -----------------------------------------------------------------------------
+    PAGE_BOUNDARY_SET
+    include "lib/draw.asm"
+
+Bank0_DrawTitleGraphic SUBROUTINE
+    ldy #TITLE_LOGO_HEIGHT-1
+    DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
+    rts
+
+#if 0
+Bank0_DrawTitleEdition SUBROUTINE
+    ldy #TITLE_EDITION_HEIGHT-1
+    DRAW_RAINBOW_GRAPHIC Bank0_TitleEdition
+    rts
+#endif
+
+    PAGE_BOUNDARY_CHECK "(1) Title kernels"
+
+    include "bank0/gen/title-menu-48.sp"
+    include "bank0/arithmetic.asm"
+    ; Bank tailored data from lib\macros.asm
+    SPRITE_OPTIONS 0
+    SPRITE_COLORS 0
 
 ; -----------------------------------------------------------------------------
 ; Graphics
 ; -----------------------------------------------------------------------------
-    ;ALIGN 256, FILLER_CHAR
+    ORG BANK0_ORG + $c00
+    RORG BANK0_RORG + $c00
 
     PAGE_BOUNDARY_SET
 Bank0_BlankSprite
     ds.b 12, 0
     include "bank0/gfx/digits.asm"
     include "bank0/gfx/betting-menu.asm"
-    PAGE_BOUNDARY_SET "(2) Sprite data"
-
-    include "bank0/arithmetic.asm"
-
-    ; Bank tailored data from lib\macros.asm
-    SPRITE_OPTIONS 0
-    SPRITE_COLORS 0
-
+    PAGE_BOUNDARY_CHECK "(2) Sprite data"
     PAGE_BYTES_REMAINING
 
 ; -----------------------------------------------------------------------------
     ORG BANK0_ORG + $d00
     RORG BANK0_RORG + $d00
-
     include "bank0/gen/title-logo-48.sp"
+    PAGE_BYTES_REMAINING
 
     ORG BANK0_ORG + $e00
     RORG BANK0_RORG + $e00
-
 Bank0_GraphicBlank
-    ds.b 19, 0              
+    ds.b 12, 0              
 
     PAGE_BOUNDARY_SET
     include "bank0/gen/title-gfx-48.sp"
     include "bank0/gen/title-copy-48.sp"
     include "bank0/gen/title-name-48.sp"
-
-    PAGE_BOUNDARY_CHECK "Bank0 Copyright"
+    PAGE_BOUNDARY_CHECK "Bank0 graphics"
     PAGE_BYTES_REMAINING
 
-    ALIGN 256, FILLER_CHAR
+    ORG BANK0_ORG + $f08
+    RORG BANK0_RORG + $f08
     PAGE_BOUNDARY_SET
-    include "bank0/gen/title-menu-48.sp"
-    include "bank0/gen/prompts-48.sp"
-    PAGE_BOUNDARY_CHECK "Bank0 Menu"
+    include "bank0/gen/bet-prompts-48.sp"
+    PAGE_BOUNDARY_CHECK "Bank0 prompts"
     PAGE_BYTES_REMAINING
 
     ; horizontal positioning data

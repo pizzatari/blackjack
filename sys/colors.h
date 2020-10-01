@@ -3,6 +3,7 @@
 ; Colors
 COLOR_BLACK                 = $00
 COLOR_BROWN                 = $C0
+COLOR_DGRAY                 = $02
 COLOR_GRAY                  = $04
 COLOR_LGRAY                 = $06
 COLOR_LGREEN                = $C8

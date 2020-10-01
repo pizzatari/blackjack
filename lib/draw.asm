@@ -111,8 +111,13 @@ DrawColor6Sprite56 SUBROUTINE
     cpy Arg1                    ; 3 (48)
     bcc .Preload                ; 3 (51)
 
-    sta WSYNC
-    ldy Arg1                    ; 3 (3)
+    lda #0                      ; 2 (2)
+    sta GRP0                    ; 3 (3)
+    sta GRP1                    ; 3 (3)
+    sta GRP0                    ; 3 (3)
+    stx COLUP0                  ; 3 (54)
+    stx COLUP1                  ; 3 (57)
+    ldy Arg1                    ; 3 (60)
 .Loop
     ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
     ; ------------------------------------------------------------------------
@@ -160,18 +165,20 @@ DrawColor6Sprite56V2 SUBROUTINE
     sty Arg1
 
     ; preload the stack with SpritePtrs+6 column of pixels
-    ldy #-1                     ; +2
+    ldy #-1                     ; 2
 .Preload
-    iny                         ; +2 (2)
-    lda (SpritePtrs+6),y        ; +5 (7)
-    pha                         ; +3 (10)
-    cpy Arg1                    ; +3 (13)
-    bcc .Preload                ; +3/2 (16)
+    iny                         ; 2 (2)
+    lda (SpritePtrs+6),y        ; 5 (7)
+    pha                         ; 3 (10)
+    cpy Arg1                    ; 3 (13)
+    bcc .Preload                ; 3/2 (16)
 
     sta WSYNC
-    ldy Arg1                    ; +3 (3)
-    SLEEP_56                    ; +56 (59)  burn cycles to align cycle count
-    nop                         ; +2 (61)
+    stx COLUP0                  ; 3 (3)
+    stx COLUP1                  ; 3 (6)
+    ldy Arg1                    ; 3 (9)
+    SLEEP_50                    ; 50 (59)  burn cycles to align cycle count
+    nop                         ; 2 (61)
 
 .Loop
     ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
@@ -193,10 +200,7 @@ DrawColor6Sprite56V2 SUBROUTINE
     tax                         ; 2  (30)   (90) 
     lda (SpritePtrs+10),y       ; 5  (35)  (105) 
     tay                         ; 2  (37)  (111) 
-    pla                         ; 4  (41)  (123)                  !
-
-    sta GRP1                    ; 3  (44)  (132)       D3     D3      D4     D2!
-    stx GRP0                    ; 3  (47)  (141)       D5     D3!     D4     D4
+    pla                         ; 4  (41)  (123)                  !  sta GRP1                    ; 3  (44)  (132)       D3     D3      D4     D2!  stx GRP0                    ; 3  (47)  (141)       D5     D3!     D4     D4
     sty GRP1                    ; 3  (50)  (150)       D5     D5      D6     D4!
     sta GRP0                    ; 3  (53)  (159)       D4*    D5!     D6     D6
     dec Arg1                    ; 5  (58)  (174)                              !

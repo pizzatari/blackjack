@@ -25,6 +25,7 @@ TARGET		= blackjack.bin
 
 .PHONY: all
 all: $(TARGET) 
+	chmod ug+x $(TARGET)
 
 $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 

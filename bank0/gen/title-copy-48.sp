@@ -1,64 +1,58 @@
 Bank0_TitleEdition
 Bank0_TitleEdition0
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %01110011
-	dc.b %01001010
-	dc.b %01001011
-	dc.b %01001001
-	dc.b %01001000
-	dc.b %01110000
-	dc.b %00000000
-Bank0_TitleEdition1
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %10100100
-	dc.b %00100100
+	dc.b %11111111
+	dc.b %10001100
+	dc.b %10110101
+	dc.b %10110100
 	dc.b %10110110
-	dc.b %10101101
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %00000000
-Bank0_TitleEdition2
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %10011001
-	dc.b %10100101
-	dc.b %10100101
-	dc.b %00011001
-	dc.b %00000001
-	dc.b %00000001
-	dc.b %00000000
-Bank0_TitleEdition3
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %11011101
-	dc.b %00010101
-	dc.b %00010101
-	dc.b %10011100
-	dc.b %00000101
-	dc.b %11000000
-	dc.b %00000000
-Bank0_TitleEdition4
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %00100101
-	dc.b %00100101
-	dc.b %00100101
-	dc.b %01110001
-	dc.b %00100100
-	dc.b %00000000
-	dc.b %00000000
-Bank0_TitleEdition5
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %11010010
+	dc.b %10110111
+	dc.b %10001111
+	dc.b %11111111
+Bank0_TitleEdition1
+	dc.b %11111111
+	dc.b %01011011
+	dc.b %11011011
+	dc.b %01001001
 	dc.b %01010010
+	dc.b %11111111
+	dc.b %11111111
+	dc.b %11111111
+Bank0_TitleEdition2
+	dc.b %11111111
+	dc.b %01100110
 	dc.b %01011010
-	dc.b %11010100
-	dc.b %00000000
-	dc.b %00000000
-	dc.b %00000000
+	dc.b %01011010
+	dc.b %11100110
+	dc.b %11111110
+	dc.b %11111110
+	dc.b %11111111
+Bank0_TitleEdition3
+	dc.b %11111111
+	dc.b %00100010
+	dc.b %11101010
+	dc.b %11101010
+	dc.b %01100011
+	dc.b %11111010
+	dc.b %00111111
+	dc.b %11111111
+Bank0_TitleEdition4
+	dc.b %11111111
+	dc.b %11011010
+	dc.b %11011010
+	dc.b %11011010
+	dc.b %10001110
+	dc.b %11011011
+	dc.b %11111111
+	dc.b %11111111
+Bank0_TitleEdition5
+	dc.b %11111111
+	dc.b %00101101
+	dc.b %10101101
+	dc.b %10100101
+	dc.b %00101011
+	dc.b %11111111
+	dc.b %11111111
+	dc.b %11111111
 Bank0_TitleMenu
 Bank0_TitleMenu0
 	dc.b %11111111
@@ -146,7 +140,6 @@ Bank0_TitleMenu5
 	dc.b %11111111
 Bank0_TitleCopyright
 Bank0_TitleCopyright0
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %00100010
@@ -163,9 +156,7 @@ Bank0_TitleCopyright0
 	dc.b %11111110
 	dc.b %11111111
 	dc.b %11111111
-	dc.b %11111111
 Bank0_TitleCopyright1
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %00001010
@@ -182,9 +173,7 @@ Bank0_TitleCopyright1
 	dc.b %11110100
 	dc.b %00001111
 	dc.b %11111111
-	dc.b %11111111
 Bank0_TitleCopyright2
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %10110001
@@ -201,9 +190,7 @@ Bank0_TitleCopyright2
 	dc.b %10001010
 	dc.b %11111111
 	dc.b %11111111
-	dc.b %11111111
 Bank0_TitleCopyright3
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %00010101
@@ -220,9 +207,7 @@ Bank0_TitleCopyright3
 	dc.b %00111111
 	dc.b %11111111
 	dc.b %11111111
-	dc.b %11111111
 Bank0_TitleCopyright4
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %01010100
@@ -239,16 +224,13 @@ Bank0_TitleCopyright4
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %11111111
-	dc.b %11111111
 Bank0_TitleCopyright5
-	dc.b %00000000
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %01000101
 	dc.b %01010101
 	dc.b %01010101
 	dc.b %01010100
-	dc.b %11111111
 	dc.b %11111111
 	dc.b %11111111
 	dc.b %11111111

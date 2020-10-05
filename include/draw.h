@@ -22,13 +22,13 @@
     ; align kernel to the start of 2nd scan line
     sta WSYNC
     tya                 ; +2
-    sta CurrY           ; +3
+    sta Arg1            ; +3
     SLEEP_56            ; +56
 
 .Loop
     ;                     Cycles   Pixel    GRP0   GRP0A   GRP1   GRP1A
     ; --------------------------------------------------------------------
-    ldy  CurrY          ; +3 (59)  192
+    ldy  Arg1           ; +3 (59)  192
     lda  .GFX0,y        ; +4 (63)  207
     sta  GRP0           ; +3 (66)  216      D1     --      --     --
     lda  INTIM          ; +4 (70)
@@ -40,17 +40,17 @@
     lda  .GFX2,y        ; +4 (11)   39
     sta  GRP0           ; +3 (14)   48      D3     D1      D2     D2
     lda  .GFX3,y        ; +4 (18)   63
-    sta  Gfx3           ; +3 (21)   72
+    sta  Arg2           ; +3 (21)   72
     lda  .GFX4,y        ; +4 (25)   87
     tax                 ; +2 (27)   93
     lda  .GFX5,y        ; +4 (31)  108
     tay                 ; +2 (33)  114
-    lda  Gfx3           ; +3 (36)  123              !
+    lda  Arg2           ; +3 (36)  123              !
     sta  GRP1           ; +3 (39)  132      D3     D3      D4     D2!
     stx  GRP0           ; +3 (42)  141      D5     D3!     D4     D4
     sty  GRP1           ; +3 (45)  150      D5     D5      D6     D4!
     sta  GRP0           ; +3 (48)  159      D4*    D5!     D6     D6
-    dec  CurrY          ; +5 (53)  174                             !
+    dec  Arg1           ; +5 (53)  174                             !
     bpl  .Loop          ; +3 (56)  183
     ENDM
 

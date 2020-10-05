@@ -81,11 +81,10 @@ Draw6Sprite56 SUBROUTINE
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw a 48 pixel wide color sprite.
-; Inputs:   Y register (sprite height - 1)
-;           SpritePtrs (array of 6 pointers)
+; Params:   Y register (sprite height - 1)
+;           X register (player starting color)
+; Inputs:   SpritePtrs (array of 6 pointers)
 ;           TempPtr (palette ptr)
-; Outputs:
-; Notes:    Requires inverted GRP graphics.
 ; -----------------------------------------------------------------------------
 DrawColor6Sprite56 SUBROUTINE
     ; mask sides
@@ -150,15 +149,13 @@ DrawColor6Sprite56 SUBROUTINE
     ; keep masking until end of scan line, then remove mask
     ;   PF0 = 11111111, PF1 = 11111111, PF2 = 11000000
     ; --------------------------------------------------------------------
-    lda #$ff                    ; 2 (2)
+    lda #0                      ; 2 (69)
     sta WSYNC
-    sta PF2                     ; 3 (5)
-    lda #0                      ; 2 (7)
-    sta CTRLPF                  ; 3 (10)
-    sta PF0                     ; 3 (13)
-    sta PF1                     ; 3 (16)
-    sta PF2                     ; 3 (19)
-    rts                         ; 6 (25)
+    sta CTRLPF                  ; 3 (3)
+    sta PF0                     ; 3 (9)
+    sta PF1                     ; 3 (12)
+    sta PF2                     ; 3 (15)
+    rts                         ; 6 (21)
 
 #if 0
 DrawColor6Sprite56V2 SUBROUTINE

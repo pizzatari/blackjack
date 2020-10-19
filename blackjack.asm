@@ -135,10 +135,16 @@ NUSIZE_3_CLOSE              = %00000011
 ; Dimensions
 SPRITE_WIDTH                = 8
 
+; Objects
+P0_OBJ                      = 0
+P1_OBJ                      = 1
+M0_OBJ                      = 2
+M1_OBJ                      = 3
+BL_OBJ                      = 4
+
 ; Game sections
 MSG_ROW_HEIGHT              = 23
 DLR_ROW_HEIGHT              = 50
-
 
 ; Objects
 MESSAGE_TEXT_HEIGHT         = 7

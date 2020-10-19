@@ -16,6 +16,9 @@
 ;    byte 2: xxx 00000
 ;      bits: 0-5    freqency
 ;
+
+#if VIDEO_MODE == VIDEO_NTSC
+
 SoundNone       ; SoundNone is not used, but defined in case it's dereferenced
 SoundNoChips
 SoundBankBroke
@@ -197,3 +200,8 @@ SoundTable
     dc.w SoundLost              ; SOUND_ID_LOST
     dc.w SoundCrashLanding      ; SOUND_ID_CRASH_LANDING
     ;dc.w SoundBankBroke         ; SOUND_ID_BANK_BROKE
+
+#endif
+
+#if VIDEO_MODE == VIDEO_PAL
+#endif

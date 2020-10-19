@@ -6,29 +6,25 @@
     ORG BANK1_ORG, FILLER_CHAR
     RORG BANK1_RORG
 
-JOY_TIMER_DELAY             = 60    ; frames (1 second)
+JOY_TIMER_DELAY     = 60    ; num frames (1 second)
 
-PLANET_ANIM_FRAMES          = 255
-ANIM_CLOCK_TICK             = %00000011
-ATMOS_HEIGHT                = 64
-PLANET_TOP_MARGIN           = ATMOS_HEIGHT
+DELTA_HEIGHT        = 64
+ATMOS_HEIGHT        = 64 + DELTA_HEIGHT
+HILLS_HEIGHT        = 8
+UPPER_FG_HEIGHT     = 24
+LOWER_FG_HEIGHT     = SCREEN_HEIGHT-ATMOS_HEIGHT-HILLS_HEIGHT-UPPER_FG_HEIGHT-5
 
-HORIZON_COLOR               = $ce
-HILLS_COLOR                 = $c6
-HILLS_HEIGHT                = 8
+; atmosphere height goes from 128 to 64
+; lower foreground height goes from 24 to 88
 
-; foreground height: -8 to account for synchronizing WSYNCs
-FOREGROUND_MAX_HEIGHT       = SCREEN_HEIGHT-PLANET_TOP_MARGIN-HILLS_HEIGHT-8
-FOREGROUND_CASINO_HEIGHT    = 64
-FOREGROUND_SHIP_HEIGHT      = 48
+HORIZON_COLOR       = COLOR_LLGREEN
+HILLS_COLOR         = COLOR_MGREEN
 
-; ship ending position
-SHIP_Y_START                = 32
-SHIP_X_END                  = 86
-SHIP_Y_END                  = 110
-SHIP_Y_END2                 = 22
+; ship positions
+SHIP_Y_POS          = UPPER_FG_HEIGHT + SHIP_HEIGHT
+SHIP_X_END          = 86
 
-CASINO_Y_POS                = 30
+CASINO_Y_POS        = 22
 
 ; -----------------------------------------------------------------------------
 ; Local Variables
@@ -41,185 +37,10 @@ JoyTimer        SET MemBlockStart+4
 FlamePosY       SET MemBlockStart+5
 FlamePtr        SET MemBlockStart+6
 TempHeight      SET MemBlockStart+8
-ShipPtr         SET MemBlockStart+10
-CasinoColor     SET MemBlockStart+12
+CasinoColor     SET MemBlockStart+9
+CasinoPtr0      SET MemBlockStart+10
+CasinoPtr1      SET MemBlockStart+12
 SoundLoops      SET MemBlockStart+13
-
-    MAC UPPER_ATMOSPHERE
-        ; upper atmosphere: fixed height; cycles colors upward
-        ; 64 pixels tall: y iterates 128 to 64
-        lda #PLANET_TOP_MARGIN
-        clc
-        adc AtmosHeight
-        tay
-.TopMargin
-        tya
-        and #ATMOS_UPPER_MASK
-        lsr
-        lsr
-        lsr
-        lsr
-        tax
-        sta WSYNC
-        lda AtmosUpperPalette,x
-        sta COLUBK
-        dey
-        cpy AtmosHeight
-        bne .TopMargin
-    ENDM
-
-    MAC LOWER_ATMOSPHERE
-        ; lower atmosphere; variable height; cycles colors upward
-        ; 64 pixels max height: y iterates  64 -> 0
-        ldy AtmosHeight
-.Atmosphere
-        tya
-        and #ATMOS_LOWER_MASK
-        lsr
-        lsr
-        lsr
-        lsr
-        tax
-        lda AtmosLowerPalette,x
-        sta WSYNC
-        sta COLUBK
-        dey
-        bpl .Atmosphere
-    ENDM
-
-    MAC BACKGROUND_HILLS
-        lda #HORIZON_COLOR
-        ldx #HILLS_COLOR
-        ldy #HILLS_HEIGHT
-        sta WSYNC
-        sta COLUPF
-
-        ; hills: fixed height; moves upward
-        ; 8 pixels tall
-.Hills
-        sta WSYNC
-        stx COLUBK
-        lda Bank1_Horizon-1,y
-        sta PF0
-        sta PF1
-        sta PF2
-        dey
-        bne .Hills
-    ENDM
-
-    MAC FOREGROUND_CASINO
-        ; skip draw version
-        ; foreground: two sections
-        ;   top section:    fixed height
-        ;   bottom section: variable height; expands upward
-        ; drawing foreground on even lines and ship on odd lines
-        ; 64 pixels tall: x = 48 to (48+64)
-        ldx #0                          ; 2
-.FgCasino
-        ; even scan line
-        txa                             ; 2 (48)
-        and #FOREGROUND_MASK            ; 2 (50)
-        tay                             ; 2 (52)
-        lda Bank1_ForegroundPalette,y   ; 4 (56)
-        sta WSYNC                       ; 3 (59)
-
-        ; --------------------------------------
-        sta COLUPF                      ; 3 (3)
-        lda Bank1_Foreground,y          ; 4 (7)
-        sta PF0                         ; 3 (10)
-        sta PF1                         ; 3 (13)
-        sta PF2                         ; 3 (16)
-
-        ; odd scan line
-        inx                             ; 2 (18)
-        ldy #COLOR_BLACK                ; 2 (20)
-        txa                             ; 2 (22)
-        sec                             ; 2 (24)
-        sta WSYNC                       ; 3 (27)
-
-        ; --------------------------------------
-        sty COLUPF                      ; 3 (3)
-        sbc #CASINO_Y_POS               ; 2 (5)
-        adc #CASINO_HEIGHT              ; 2 (7)
-        bcc .skipCasino                 ; 2 (9)
-        tay                             ; 2 (11)
-        lda Bank1_CasinoGfx1,y          ; 5 (16)
-        sta GRP0                        ; 3 (19)
-        lda Bank1_CasinoGfx2,y          ; 5 (25)
-        sta GRP1                        ; 3 (28)
-.skipCasino
-
-        ;lda FrameCtr                    ; 3 (31)
-        ;and #%11111000                  ; 2 (33)
-        ;sta COLUP0                      ; 3 (36)
-        ;sta COLUP1                      ; 3 (39)
-        ;lda Bank1_CasinoPalette,y       ; 4 (32)
-        ldy CasinoColor                 ; 3 (31)
-        lda Bank1_CasinoPalette,y       ; 4 (32)
-        sta COLUP0                      ; 3 (35)
-        sta COLUP1                      ; 3 (38)
-
-        inx                             ; 2 (41)
-        cpx #FOREGROUND_CASINO_HEIGHT   ; 2 (43)
-        bcc .FgCasino                   ; 3 (46)
-    ENDM
-
-    MAC FOREGROUND_TERRAIN
-        ; skip draw version
-        ; foreground: variable height; expands upward
-        ; drawing foreground on even lines and ship on odd lines
-        ; 112 max pixels tall: x = 48 to (48+64)
-        ldx #0                          ; 2
-.FgTerrain
-        ; even scan line
-        txa                             ; 2 (46)
-        and #FOREGROUND_MASK            ; 2 (48)
-        tay                             ; 2 (50)
-        lda Bank1_ForegroundPalette,y   ; 4 (54)
-        sta WSYNC                       ; 3 (57)
-
-        ; --------------------------------------
-        sta COLUPF                      ; 3 (3)
-        lda Bank1_Foreground,y          ; 4 (7)
-        sta PF0                         ; 3 (10)
-        sta PF1                         ; 3 (13)
-        sta PF2                         ; 3 (16)
-
-        ; odd scan line
-        inx                             ; 2 (18)
-        ldy #COLOR_BLACK                ; 2 (20)
-        txa                             ; 2 (22)
-        sec                             ; 2 (24)
-        sta WSYNC                       ; 3 (27)
-
-        ; --------------------------------------
-        sty COLUPF                      ; 3 (3)
-        sbc ShipPosY                    ; 3 (6)
-        adc #SHIP_HEIGHT                ; 2 (8)
-        bcc .skipDraw                   ; 2 (10)
-        tay                             ; 2 (12)
-        lda (FlamePtr),y                ; 4 (16)
-        sta GRP0                        ; 3 (19)
-        lda Bank1_ShipGfx,y             ; 4 (23)
-        sta GRP1                        ; 3 (26)
-.skipDraw
-
-        lda Bank1_ShipPalette,y         ; 4 (30)
-        sta COLUP0                      ; 3 (33)
-        sta COLUP1                      ; 3 (36)
-
-        inx                             ; 2 (38)
-        cpx FgHeight                    ; 3 (41)
-        bcc .FgTerrain                  ; 3 (44)
-
-        ; the scanline count alternates between even and odd, so force it
-        ; to be even and stable
-        lda #1
-        bit FgHeight
-        bne .SkipExtraLine
-        sta WSYNC
-.SkipExtraLine
-    ENDM
 
 Bank1_Reset
     ; switch to bank 0 if we start here
@@ -232,34 +53,36 @@ Bank1_Init
 
     lda #ATMOS_HEIGHT-1
     sta AtmosHeight
+    lda #LOWER_FG_HEIGHT
+    sta FgHeight
+
+    lda #SHIP_Y_POS
+    sta ShipPosY
+    lda #0
+    sta FlamePosY
 
     lda #%00001000
     sta REFP0
     sta REFP1
-    lda #0
-    sta NUSIZ0
-    sta NUSIZ1
+
+    ldx #0
+    stx NUSIZ0
+    stx NUSIZ1
+    stx CasinoColor
 
     ; position player 0
-    ldx #0
+    ; X = 0
     lda #158
     sta ShipPosX
     jsr Bank1_HorizPosition
+
     ; position player 1
-    ldx #1
+    ldx #P1_OBJ
     lda #151
     jsr Bank1_HorizPosition
+
     sta WSYNC
     sta HMOVE
-
-    lda #SHIP_Y_START
-    sta ShipPosY
-
-    lda #SHIP_HEIGHT-FLAME_HEIGHT
-    sta FlamePosY
-
-    lda #0
-    sta CasinoColor
 
     lda #SOUND_ID_CRASH_LANDING
     sta Arg1
@@ -270,108 +93,84 @@ Bank1_Init
     sta WSYNC
 
 Bank1_FrameStart
-    ; -------------------------------------------------------------------------
-    ; vertical sync
-    ; -------------------------------------------------------------------------
+    jsr Bank1_VerticalSync
+    TIMED_JSR Bank1_VerticalBlank, TIME_VBLANK_TITLE+1, TIM64T ; +1 to fix timing issue
+    jsr Bank1_LandingKernel
+    TIMED_JSR Bank1_Overscan, TIME_OVERSCAN, TIM64T
+    jmp Bank1_FrameStart
+
+Bank1_VerticalSync
     VERTICAL_SYNC
+    rts
+
+Bank1_VerticalBlank SUBROUTINE
+    ; update animations every 4 frames
+    lda #%00000011
+    bit FrameCtr
+    bne .Return
+
+    ; shrink atmosphere, expand foreground
+    ldy AtmosHeight
+    cpy #ATMOS_HEIGHT-DELTA_HEIGHT+1
+    bcc .Skip
+    dec AtmosHeight
+    inc FgHeight
+.Skip
+
+    ; check if the ship reached the stopping point
+    ldx ShipPosX
+    cpx #SHIP_X_END
+    beq .AtRest
+
+    ; ship is in flight
+    jsr Bank1_MoveShip
+    jsr Bank1_AnimateFlames
+    lda #<Bank1_BlankSprite
+    sta CasinoPtr0
+    sta CasinoPtr1
+    lda #>Bank1_BlankSprite
+    sta CasinoPtr0+1
+    sta CasinoPtr1+1
+    jmp .Return
+
+.AtRest
+    ; set to fixed Y position in sub-divided foreground
+    jsr Bank1_FadeInCasino
+    jsr Bank1_AnimateFlames
+    lda #<Bank1_CasinoGfx0
+    sta CasinoPtr0
+    lda #>Bank1_CasinoGfx0
+    sta CasinoPtr0+1
+    lda #<Bank1_CasinoGfx1
+    sta CasinoPtr1
+    lda #>Bank1_CasinoGfx1
+    sta CasinoPtr1+1
+
+.Return
+    sta WSYNC
     lda #0
     sta VBLANK
-    ; -------------------------------------------------------------------------
+    rts
 
-    ; -------------------------------------------------------------------------
-    ; vertical blank
-    ; -------------------------------------------------------------------------
-    lda #TIME_VBLANK_TITLE+1        ; +1 to fix timing issue
-    sta TIM64T
-
-    ; update animations every N frames
-    lda FrameCtr
-    and #ANIM_CLOCK_TICK
-    bne .Continue
-
-    ; move the scene
-    jsr Bank1_MoveScene
-
-    lda ShipPosX
-    cmp #SHIP_X_END
-    beq .SplitFg
-
-    ; move the ship
-    jsr Bank1_MoveShip
-    jmp .Continue
-
-.Continue
-    lda ShipPosX
-    cmp #SHIP_X_END
-    beq .SplitFg
-
-.NonSplitFg
-    ; update scene heights (foreground not sub-divided)
-    sec
-    lda #FOREGROUND_MAX_HEIGHT
-    sbc AtmosHeight
-    sta FgHeight
-    jmp .UpdatePtrs
-
-.SplitFg
-    ; update scene heights (sub-divided foreground)
-    sec
-    lda #FOREGROUND_MAX_HEIGHT
-    sbc #FOREGROUND_CASINO_HEIGHT
-    sbc AtmosHeight
-    sta FgHeight
-
-    ; set to fixed Y position in sub-divided foreground
-    lda #SHIP_Y_END2
-    sta ShipPosY
-
-    ; cycle casino color
-    lda FrameCtr
-    and #%00000111
-    bne .SkipColor
-    lda CasinoColor
-    cmp #CASINO_NUM_COLORS-1
-    beq .SkipColor
-    inc CasinoColor
-.SkipColor
-
-.UpdatePtrs
-    ;jsr Bank1_UpdateShipPointers
-    ; alternate the flame graphics
-    lda FrameCtr
-    and #%00011000
-    asl                 ; x4
-    clc
-    adc #<Bank1_FlameGfx1
-    sta FlamePtr
-    lda #>Bank1_FlameGfx1
-    adc #0
-    sta FlamePtr+1
-
-    TIMER_WAIT
-    ; -------------------------------------------------------------------------
-
-    ; -------------------------------------------------------------------------
-    ; kernel
-    ; -------------------------------------------------------------------------
-    sta WSYNC
-    ; set up graphics
-    lda #1
-    sta CTRLPF
+Bank1_LandingKernel SUBROUTINE
+    ; set up graphics config
+    lda #%00110001          ; pf reflected; ballsize = 8
     ldy #COLOR_DGREEN
+
+    sta WSYNC
+    sta CTRLPF
     sty COLUPF
     ldy #0
     sty PF0
     sty PF1
     sty PF2
 
-    UPPER_ATMOSPHERE
-    LOWER_ATMOSPHERE
-    BACKGROUND_HILLS
+    jsr Bank1_DrawAtmosphere
+    jsr Bank1_DrawBgHills
 
     ; transition hills to foreground
+    lda #%00110000          ; pf mirrored; ballsize = 8
     sta WSYNC
-    lda #0
     sta CTRLPF
 
     ; do some set up for the foreground
@@ -383,20 +182,15 @@ Bank1_FrameStart
     sta NUSIZ1
     stx COLUPF
 
-    ; when ship comes to a stop, show split foreground kernel
-    lda ShipPosX
-    cmp #SHIP_X_END
-    bne .ShipInFlight
+    jsr Bank1_DrawUpperFg
 
-    FOREGROUND_CASINO
-
-.ShipInFlight
-    FOREGROUND_TERRAIN
+    sta HMCLR
+    jsr Bank1_DrawLowerFg
 
 .TerrainDone
     ; clear graphics
-    sta WSYNC
     lda #0
+    sta WSYNC
     sta COLUPF
     sta COLUBK
     sta PF0
@@ -404,18 +198,158 @@ Bank1_FrameStart
     sta PF2
     sta GRP0
     sta GRP1
-    ; -------------------------------------------------------------------------
+    rts
 
-    ; -------------------------------------------------------------------------
-    ; overscan
-    ; -------------------------------------------------------------------------
+; variable height
+Bank1_DrawAtmosphere SUBROUTINE
+    ldy AtmosHeight
+.Atmosphere
+    tya
+    ; 8 bands x 8 height: 64 total height
+    and #%01110000
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda Bank1_AtmosPalette,x
+    sta WSYNC
+    sta COLUBK
+    dey
+    bne .Atmosphere
+    rts
+
+Bank1_DrawBgHills SUBROUTINE
+    lda #HORIZON_COLOR
+    ldx #HILLS_COLOR
+    ldy #HILLS_HEIGHT
+    sta WSYNC
+    sta COLUPF
+.Hills
+    sta WSYNC
+    stx COLUBK
+    lda Bank1_Horizon-1,y
+    sta PF0
+    sta PF1
+    sta PF2
+    dey
+    bne .Hills
+    rts
+
+; drawing foreground on even lines and ship on odd lines
+Bank1_DrawUpperFg SUBROUTINE
+    ldx #0                          ; 2 (2)
+.FgCasino
+    ; even scan line
+    txa                             ; 2 (48)
+    and #%00011110                  ; 2 (50)
+    lsr                             ; 2 (2)
+    tay                             ; 2 (52)
+    lda Bank1_ForegroundPalette,y   ; 4 (56)
+    sta WSYNC                       ; 3 (59)
+
+    ; --------------------------------------
+    sta COLUPF                      ; 3 (3)
+    lda Bank1_Foreground,y          ; 4 (7)
+    sta PF0                         ; 3 (10)
+    sta PF1                         ; 3 (13)
+    sta PF2                         ; 3 (16)
+
+    ; odd scan line
+    inx                             ; 2 (18)
+    ldy #COLOR_BLACK                ; 2 (20)
+    txa                             ; 2 (22)
+    sec                             ; 2 (24)
+    sta WSYNC                       ; 3 (27)
+
+    ; --------------------------------------
+    sty COLUPF                      ; 3 (3)
+    sbc #CASINO_Y_POS               ; 2 (5)
+    adc #CASINO_HEIGHT*2            ; 2 (7)
+    bcc .skipCasino                 ; 2 (9)
+    lsr                             ; 2 (11)
+    tay                             ; 2 (13)
+    lda (CasinoPtr0),y              ; 5 (18)
+    sta GRP0                        ; 3 (21)
+    lda (CasinoPtr1),y              ; 5 (26)
+    sta GRP1                        ; 3 (29)
+
+.skipCasino
+    ldy CasinoColor                 ; 3 (32)
+    lda Bank1_CasinoPalette,y       ; 4 (36)
+    sta COLUP0                      ; 3 (39)
+    sta COLUP1                      ; 3 (42)
+
+    inx                             ; 2 (44)
+    cpx #UPPER_FG_HEIGHT            ; 2 (46)
+    bcc .FgCasino                   ; 3 (49)
+    rts
+
+Bank1_DrawLowerFg SUBROUTINE
+    lda #UPPER_FG_HEIGHT            ; 2 (2)
+    clc                             ; 2 (2)
+    adc FgHeight                    ; 3 (3)
+    sta TempHeight                  ; 3 (3)
+
+    ldx #UPPER_FG_HEIGHT            ; 2 (2)
+.FgTerrain
+    ; even scan line
+    txa                             ; 2 (44)
+    and #%00011110                  ; 2 (50)
+    lsr                             ; 2 (2)
+    tay                             ; 2 (48)
+    lda Bank1_ForegroundPalette,y   ; 4 (52)
+
+    ; --------------------------------------
+    sta WSYNC
+    sta COLUPF                      ; 3 (3)
+    lda Bank1_Foreground,y          ; 4 (7)
+    sta PF0                         ; 3 (10)
+    sta PF1                         ; 3 (13)
+    sta PF2                         ; 3 (16)
+
+    ; odd scan line
+    inx                             ; 2 (18)
+    ldy #COLOR_BLACK                ; 2 (20)
+    sec                             ; 2 (22)
+    txa                             ; 2 (24)
+    sbc ShipPosY                    ; 3 (27)
+    adc #SHIP_HEIGHT*2              ; 2 (29)
+
+    ; --------------------------------------
+    sta WSYNC
+    sty COLUPF                      ; 3 (3)
+
+    bcc .SkipDraw                   ; 2 (5)
+    lsr                             ; 2 (7)
+    tay                             ; 2 (9)
+    lda (FlamePtr),y                ; 5 (14)
+    sta GRP0                        ; 3 (17)
+    lda Bank1_ShipGfx,y             ; 4 (21)
+    sta GRP1                        ; 3 (24)
+    lda Bank1_ShipPalette,y         ; 4 (28)
+    sta COLUP0                      ; 3 (31)
+    sta COLUP1                      ; 3 (34)
+.SkipDraw
+
+    inx                             ; 2 (36)
+    cpx TempHeight                  ; 3 (39)
+    bcc .FgTerrain                  ; 3 (42)
+
+    ; the scanline count alternates between even and odd whereas the kernel
+    ; increments by 2, so force the line count to be a multiple of 2
+    lda #1
+    bit TempHeight
+    bne .Skip
+    sta WSYNC
+.Skip
+    rts
+
+Bank1_Overscan SUBROUTINE
+    sta WSYNC
     lda #%00000010
     sta VBLANK
-    sta WSYNC
     inc FrameCtr
-
-    lda #TIME_OVERSCAN
-    sta TIM64T
 
     jsr SoundQueueTick
     jsr Bank1_ReadSwitches
@@ -435,12 +369,7 @@ Bank1_FrameStart
 .DoJoystick
     jsr Bank1_ReadJoystick
 .SkipJoystick
-
-    TIMER_WAIT
-    sta WSYNC
-    ; -------------------------------------------------------------------------
-
-    jmp Bank1_FrameStart
+    rts
 
 Bank1_MoveShip SUBROUTINE
     ; move the ship horizontally
@@ -457,107 +386,37 @@ Bank1_MoveShip SUBROUTINE
     lsr
     tax
 
-    ; using a table for vertical motion
+    ; using a table for vertical motion jitter
     clc
     lda ShipPosY
-    adc Bank1_ShipMotionY,x
+    adc Bank1_MotionJitterY,x
     sta ShipPosY
     sta FlamePosY
     rts
 
-Bank1_MoveScene SUBROUTINE
-    ; move atmosphere up
-    lda AtmosHeight
+Bank1_FadeInCasino
+    lda FrameCtr
+    and #%00000111      ; update every 8 frames
+    bne .Return
+    lda CasinoColor
+    cmp #CASINO_NUM_COLORS-1
     beq .Return
-    dec AtmosHeight
+    inc CasinoColor
 .Return
     rts
 
-#if 0
-Bank1_UpdatePositions SUBROUTINE
-    ; move the ship
-    lda ShipPosX
-    cmp #SHIP_X_END
-    beq .ShipAtRest
-
-    ; horizontal motion
-    dec ShipPosX
-    lda #1<<4
-    sta HMP0
-    sta HMP1
-    sta WSYNC
-    sta HMOVE
-
-    lda ShipPosY
-    cmp #SHIP_Y_END
-    bcs .ShipAtRest
-
-    ; vertical motion
-    lda FrameCtr
-    and #%00011110
-    lsr
-    tax
-
-    lda ShipPosY
-    clc
-    adc Bank1_ShipMotionY,x
-    sta ShipPosY
-
-    lda FlamePosY
-    clc
-    adc Bank1_ShipMotionY,x
-    sta FlamePosY
-
-    ; update foreground height: remove height of atmosphere
-    sec
-    lda #FOREGROUND_MAX_HEIGHT
-    sbc AtmosHeight
-    sta FgHeight
-    rts
-
-.ShipAtRest
-    ; adjust heights to accomodate casino kernel
-    sec
-    lda #SHIP_Y_END
-    sbc #FOREGROUND_CASINO_HEIGHT
-    sta ShipPosY
-
-    lda #FOREGROUND_MAX_HEIGHT
-    sbc #FOREGROUND_CASINO_HEIGHT
-    sta FgHeight
-
-    ; update foreground height: remove height of casino and height of atmosphere
-    sec
-    lda #FOREGROUND_MAX_HEIGHT
-    sbc #FOREGROUND_CASINO_HEIGHT
-    sbc AtmosHeight
-    sta FgHeight
-    rts
-#endif
-
-Bank1_UpdateShipPointers SUBROUTINE
+Bank1_AnimateFlames SUBROUTINE
     ; alternate the flame graphics
     lda FrameCtr
     and #%00011000
-    asl                 ; x4
-    clc
-    adc #<Bank1_FlameGfx1
+    lsr
+    lsr
+    lsr
+    tay
+    lda Bank1_FlamesLo,y
     sta FlamePtr
-    lda #>Bank1_FlameGfx1
-    adc #0
+    lda Bank1_FlamesHi,y
     sta FlamePtr+1
-
-#if 0
-    lda #<Bank1_CasinoGfx1
-    sta CasinoPtr1
-    lda #<Bank1_CasinoGfx2
-    sta CasinoPtr2
-    lda #>Bank1_CasinoGfx1
-    sta CasinoPtr1+1
-    sta CasinoPtr2+1
-#endif
-
-.Return
     rts
 
 ; -----------------------------------------------------------------------------
@@ -601,123 +460,101 @@ Bank1_ReadJoystick SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; GRAPHICS DATA
 ; -----------------------------------------------------------------------------
-; 8 bands x 8 pixel color bands: 64 pixels tall
-ATMOS_LOWER_MASK    = %01110000
-AtmosLowerPalette
-    dc.b $cc, $ca, $c8, $c6, $c4, $c2, $c0, $c0
-
-ATMOS_UPPER_MASK    = %01110000
-AtmosUpperPalette
-    dc.b $cc, $ca, $c8, $c6, $c4, $c2, $c0, $c0
+    include "sys/bank1_palette.asm"
 
 Bank1_Horizon
     dc.b %00000000, %10000000, %11000000, %11100000, %11110000
     dc.b %11111000, %11111100, %11111110, %11111111
 
-Bank1_ForegroundPalette
-    dc.b $16, $e8, $f4, $14, $e8, $d4, $14, $f4
-    dc.b $16, $e8, $f4, $14, $e8, $d4, $14, $f4
-
-FOREGROUND_MASK     = %00001111
 Bank1_Foreground
-    dc.b %01001000, $0
-    dc.b %00100011, $0
-    dc.b %10011100, $0
-    dc.b %01100011, $0
-    dc.b %01010100, $0
-    dc.b %10011110, $0
-    dc.b %10100101, $0
-    dc.b %01001010, $0
-    dc.b %10110001, $0
-    dc.b %10000100, $0
-    dc.b %01111011, $0
-    dc.b %10000100, $0
-    dc.b %01010011, $0
-    dc.b %00101100, $0
-    dc.b %11001010, $0
-    dc.b %00110001, $0
+    dc.b %01001000
+    dc.b %00100011
+    dc.b %10011100
+    dc.b %01100011
+    dc.b %01010100
+    dc.b %10011110
+    dc.b %10100101
+    dc.b %01001010
+    dc.b %10110001
+    dc.b %10000100
+    dc.b %01111011
+    dc.b %10000100
+    dc.b %01010011
+    dc.b %00101100
+    dc.b %11001010
+    dc.b %00110001
 
+Bank1_FlameGfx0
+    dc.b %10101000
+    dc.b %01011100
+    dc.b %00010110
+    dc.b %00000011
+    ds.b 4, 0
 Bank1_FlameGfx1
-    dc.b 0, %10101000
-    dc.b 0, %01011100
-    dc.b 0, %00010110
-    dc.b 0, %00000011
-    ds.b 8, 0
-FLAME_HEIGHT = . - Bank1_FlameGfx1
-
+    dc.b %01010000
+    dc.b %11011010
+    dc.b %00101100
+    dc.b %00000110
+    ds.b 4, 0
 Bank1_FlameGfx2
-    dc.b 0, %01010000
-    dc.b 0, %11011010
-    dc.b 0, %00101100
-    dc.b 0, %00000110
-    ds.b 8, 0
-
+    dc.b %11000000
+    dc.b %01110100
+    dc.b %01011000
+    dc.b %00101010
+    ds.b 4, 0
 Bank1_FlameGfx3
-    dc.b 0, %11000000
-    dc.b 0, %01110100
-    dc.b 0, %01011000
-    dc.b 0, %00101010
-    ds.b 8, 0
-
-Bank1_FlameGfx4
-    dc.b 0, %10010000
-    dc.b 0, %10101000
-    dc.b 0, %11110010
-    dc.b 0, %00010110
-    ds.b 8, 0
-
+    dc.b %10010000
+    dc.b %10101000
+    dc.b %11110010
+    dc.b %00010110
 Bank1_ShipGfx
-    ds.b 8, 0
-    dc.b 0, %10110000
-    dc.b 0, %01011110
-    dc.b 0, %11111111
-    dc.b 0, 0
+    ds.b 4, 0
+    dc.b %10110000
+    dc.b %01011110
+    dc.b %11111111
+    dc.b 0
 SHIP_HEIGHT = . - Bank1_ShipGfx
 
-Bank1_ShipPalette
-    dc.b 0, $1a, 0, $2a, 0, $3a, 0, $4a
-    dc.b 0, $0e, 0, $08, 0, $04, 0, 0
+Bank1_FlamesLo
+    dc.b <Bank1_FlameGfx0, <Bank1_FlameGfx1, <Bank1_FlameGfx2, <Bank1_FlameGfx3
+Bank1_FlamesHi
+    dc.b >Bank1_FlameGfx0, >Bank1_FlameGfx1, >Bank1_FlameGfx2, >Bank1_FlameGfx3
 
+Bank1_CasinoGfx0
+    dc.b %00000111
+    dc.b %11111111
+    dc.b %10000000
+    dc.b %10000000
+    dc.b %10111111
+    dc.b %10100010
+    dc.b %10100010
+    dc.b %10100010
+    dc.b %11111111
+    dc.b 0
+CASINO_HEIGHT = . - Bank1_CasinoGfx0
 Bank1_CasinoGfx1
-    dc.b 0, %00000111
-    dc.b 0, %11111111
-    dc.b 0, %10000000
-    dc.b 0, %10000000
-    dc.b 0, %10111111
-    dc.b 0, %10100010
-    dc.b 0, %10100010
-    dc.b 0, %10100010
-    dc.b 0, %11111111
-    dc.b 0, 0
-CASINO_HEIGHT = . - Bank1_CasinoGfx1
+    dc.b %11100000
+    dc.b %11111111
+    dc.b %00000001
+    dc.b %00000001
+    dc.b %11111101
+    dc.b %01000101
+    dc.b %01000101
+    dc.b %01000101
+    dc.b %11111111
+Bank1_BlankSprite
+    ds.b 20, 0
 
-Bank1_CasinoGfx2
-    dc.b 0, %11100000
-    dc.b 0, %11111111
-    dc.b 0, %00000001
-    dc.b 0, %00000001
-    dc.b 0, %11111101
-    dc.b 0, %01000101
-    dc.b 0, %01000101
-    dc.b 0, %01000101
-    dc.b 0, %11111111
-    dc.b 0, 0
-
-Bank1_CasinoPalette
-    dc.b $00, $00, $00, $00, $00, $e0, $e0, $e0
-    dc.b $e0, $e2, $e4, $e6, $e8, $ea, $ec, $ee
-CASINO_NUM_COLORS = . - Bank1_CasinoPalette
-
-Bank1_ShipMotionY
+; these have to be multiples of 2
+Bank1_MotionJitterY
     dc.b 2, 0, 2, 2, 2, 0, -2, 0
-    dc.b 2, 2, 0, 2, 2, 0, -2, 0
+    dc.b 0, 2, 0, 2, 2, 0, -2, 0
 
 ; -----------------------------------------------------------------------------
 ; Sound
 ; -----------------------------------------------------------------------------
     include "bank1/lib/sound.asm"
-    include "bank1/snd/ntsc_snd.asm"
-    include "bank1/snd/pal_snd.asm"
+    include "sys/bank1_sound.asm"
 
     IF BALLAST_ON == 1
         ; ballast code
@@ -734,23 +571,6 @@ Bank1_ShipMotionY
     ALIGN 256, FILLER_CHAR
 
     HORIZ_POSITION_SUBS Bank1_
-/*
-    HORIZ_POS_TABLE 1
-
-; -----------------------------------------------------------------------------
-; Desc:     Positions an object horizontally using the divide by 15 method
-;           with a table lookup for fine adjustments.
-; Inputs:   A register (horizontal position)
-;           X register (sprite to position : 0 to 4)
-; Outputs:  A = fine adjustment value
-;           Y = the remainder minus an additional 15
-; -----------------------------------------------------------------------------
-Bank1_PosObject SUBROUTINE
-    HORIZ_POS_OBJECT2 Bank1_fineAdjustTable
-    sta WSYNC
-    sta HMOVE
-    rts
-*/
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures

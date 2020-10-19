@@ -36,6 +36,14 @@ Bank2_Reset
     bit BANK0_HOTSPOT
 
 Bank2_Init
+    ; debug ram
+    lda #$4f
+    ldy #$e0
+.Init
+    sta 0,y
+    iny
+    bne .Init
+
     lda #0
     sta REFP0
     sta REFP1
@@ -524,36 +532,45 @@ NumDecksMask
 ;    ENDIF
 
 ; -----------------------------------------------------------------------------
-; Card format:
-;        deck     discard bit
-;       row col    position
-;         \   \   ___|__
-;          \   \ /      \
-;   Bits:   7   6   5   4   3   2   1   0
-;           |___|   |___|   |___________|
-;            deck    suit       rank  
+; Card bit format:
 ;
-;   Decks:  0,1,2,3
-;   Suits:  0,1,2,3
-;   Ranks:  1,2,3,4,5,6,7,8,9,10,11,12,13   (0,14,15 are invalid)
+;            deck    suit       rank  
+;            ___     ___     ___________
+;           |   |   |   |   |           |
+;   Bits:   7   6   5   4   3   2   1   0
+
+;   Decks: 0-3; Suits: 0-3
+;   Ranks: 1-13 (0,14,15 are invalid)
+;
+;   Deck and suit bits map to the position in the discard table
+;
+;                bit col     table row index
+;                _______     ___________
+;               |       |   |           |
+;   Bits:   7   6   5   4   3   2   1   0
+;           |
+;      top/bot half
+;
+;                suits col   table row index
+;                    ___     ___________
+;                   |   |   |           |
+;   Bits:   7   6   5   4   3   2   1   0
+;           |___|
+;        table deck
 ;
 ; ----
-; Discard pile format:
+; Discard table format:
 ;
-;   Each byte contains 8 cards, so 1 bit per card. 26x8 = 208 cards or 4 decks.
-;   Each nibble selects the deck and suit. Bits 0,1,2 of each nibble selects
-;   the deck column. Bit 3 of each nibble selects the deck row.
+;   Each byte represents 8 cards, so 1 bit per card. There are
+;   208 cards (4 decks), which require 26 bytes of storage (208/8=26).
 ;   
-;   Suit:           Spades  Hearts  Clubs   Diamonds
-;   Column:         7,3     6,2     5,1     4,0
-;
 ;   Bit values: 1 = discarded, 0 = in play
+;   Spades (S), Hearts (H), Clubs (C), Diamonds (D)
 ;   
-;                high nibble        low nibble
-;   suits--->|  S | H | C | D  |  S | H | C | D  |
+;            |   high nibble   |    low nibble   |
+;    suits-> |  S | H | C | D  |  S | H | C | D  |
 ;   ---------|----|---|---|----|----|---|---|----|------
-;   nibble-->|  3 | 2 | 1 | 0  |  3 | 2 | 1 | 0  | 
-;   byte|rank|  7 | 6 | 5 | 4  |  3 | 2 | 1 | 0  | index
+;   num |rank|  7 | 6 | 5 | 4  |  3 | 2 | 1 | 0  | index
 ;   ----|----|-----------------------------------|------
 ;     1    A |    |   |   |    |    |   |   |    |  0
 ;     2    2 |    |   |   |    |    |   |   |    |  1
@@ -583,10 +600,8 @@ NumDecksMask
 ;    25    Q |    |   |   |    |    |   |   |    | 24
 ;    26    K |    |   |   |    |    |   |   |    | 25
 ;   ----|----|-----------------------------------|------
-;   byte|rank|  7 | 6 | 5 | 4  |  3 | 2 | 1 | 0  | index
-;   nibble-->|  3 | 2 | 1 | 0  |  3 | 2 | 1 | 0  | 
+;   num |rank|  7 | 6 | 5 | 4  |  3 | 2 | 1 | 0  | index
 ;   ---------|----|---|---|----|----|---|---|----|------
-; -----------------------------------------------------------------------------
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Calculates the card's row and column position into DiscardPile
@@ -3068,9 +3083,12 @@ Bank2_CardPointValue
     ;     -   A  2  3  4  5  6  7  8  9  10  J   Q   K   -  -
     dc.b $0, $11, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $10, $10, $0, $0
 
-; These must be BCD values.
+; These must be BCD values. 1 is added for the actual value.
 Bank2_DenomValue 
-    dc.b  $0, $4, $9, $24, $49, $99
+    ;dc.b  $0, $4, $9, $24, $49, $99
+    dc.b  $0, $9, $24, $99, $99, $99
+Bank2_DenomValue2
+    dc.b  $0, $0, $0, $0, $10, $0
 
     IF BALLAST_ON == 1
         ; ballast code
@@ -3086,11 +3104,7 @@ Bank2_DenomValue
 
     include "lib/test.asm"
     include "bank2/arithmetic.asm"
-
-Bank2_TextBarPalette
-    ; background, foreground
-    dc.b COLOR_DRED, COLOR_YELLOW
-    dc.b COLOR_GRAY, COLOR_WHITE
+    include "sys/bank2_palette.asm"
 
 ; Indexed by game state values.
 ; bit 7:        show betting row

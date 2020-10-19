@@ -128,43 +128,43 @@ Bank0_X1Sprite
 Bank0_DenomSprite1
 Bank0_X5Sprite
     dc.b %00000000
-    dc.b %00000111
-    dc.b %00000001
-    dc.b %00000111
-    dc.b %00000100
-    dc.b %00000111
-Bank0_DenomSprite2
-Bank0_X10Sprite
-    dc.b %00000000
     dc.b %01110111
     dc.b %00100101
     dc.b %00100101
     dc.b %01100101
     dc.b %00100111
-Bank0_DenomSprite3
-Bank0_X25Sprite
+Bank0_DenomSprite2
+Bank0_X10Sprite
     dc.b %00000000
     dc.b %01110111
     dc.b %01000001
     dc.b %01110111
     dc.b %00010100
     dc.b %01110111
-Bank0_DenomSprite4
-Bank0_X50Sprite
-    dc.b %00000000
-    dc.b %01110111
-    dc.b %00010101
-    dc.b %01110101
-    dc.b %01000101
-    dc.b %01110111
-Bank0_DenomSprite5
-Bank0_X100Sprite
+Bank0_DenomSprite3
+Bank0_X25Sprite
     dc.b %00000000
     dc.b %11100000
     dc.b %01000000
     dc.b %01011011
     dc.b %11011011
     dc.b %01011011
+Bank0_DenomSprite4
+Bank0_X50Sprite
+    dc.b %00000000
+    dc.b %11101001
+    dc.b %01001010
+    dc.b %01001100
+    dc.b %11001010
+    dc.b %01001001
+Bank0_DenomSprite5
+Bank0_X100Sprite
+    dc.b %00000000
+    dc.b %01010111
+    dc.b %00100100
+    dc.b %01010111
+    dc.b %00000001
+    dc.b %00000111
 Bank0_TimesSprite
     dc.b %00000000
     dc.b %00001010

@@ -6,8 +6,6 @@
     ORG BANK1_ORG, FILLER_CHAR
     RORG BANK1_RORG
 
-JOY_TIMER_DELAY     = 60    ; num frames (1 second)
-
 DELTA_HEIGHT        = 64
 ATMOS_HEIGHT        = 64 + DELTA_HEIGHT
 HILLS_HEIGHT        = 8
@@ -34,7 +32,7 @@ FgHeight        SET MemBlockStart+1
 ShipPosX        SET MemBlockStart+2
 ShipPosY        SET MemBlockStart+3
 JoyTimer        SET MemBlockStart+4
-FlamePosY       SET MemBlockStart+5
+FlamePosY       SET MemBlockStart+6
 FlamePtr        SET MemBlockStart+6
 TempHeight      SET MemBlockStart+8
 CasinoColor     SET MemBlockStart+9
@@ -187,7 +185,6 @@ Bank1_LandingKernel SUBROUTINE
     sta HMCLR
     jsr Bank1_DrawLowerFg
 
-.TerrainDone
     ; clear graphics
     lda #0
     sta WSYNC

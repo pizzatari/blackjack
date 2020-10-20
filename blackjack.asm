@@ -129,6 +129,8 @@ TIME_CHIP_MENU_SETUP        = 2*76/8    ; TIM8T (19)
 TIME_CHIP_DENOM             = 6*76/8    ; TIM8T (57)
 TIME_STATUS_BAR             = 4*76/8    ; TIM8T (38)
 
+JOY_TIMER_DELAY             = 60        ; num frames (1 second)
+
 NUSIZE_3_MEDIUM             = %00000110
 NUSIZE_3_CLOSE              = %00000011
 
@@ -273,80 +275,18 @@ NEW_PLAYER_CHIPS            = $1000     ; BCD value
         sta CurrState
     ENDM
 
-#if 0
-; -----------------------------------------------------------------------------
-; Returns the current bet menu selection.
-; Inputs:
-; Outputs:      A register (menu selection)
-; -----------------------------------------------------------------------------
-    MAC GET_BET_MENU
-        lda CurrState
-        and #~CURR_BET_MENU_MASK
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Sets the current dashboard menu selection.
-; Inputs:       Y register (menu selection)
-; Outputs:
-; -----------------------------------------------------------------------------
-    MAC SET_BET_MENU
-        lda CurrState
-        and #~CURR_BET_MENU_MASK
-        sta CurrState
-        tya
-        ora CurrState
-        sta CurrState
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Returns the current player.
-; Inputs:
-; Outputs:      A register (current player)
-; -----------------------------------------------------------------------------
-    MAC GET_CURR_PLAYER
-        lda CurrState
-        and #CURR_PLAYER_MASK
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Sets the current player.
-; Inputs:       X register (current player)
-; Outputs:      
-; -----------------------------------------------------------------------------
-    MAC SET_CURR_PLAYER
-        lda #~CURR_PLAYER_MASK
-        and CurrState
-        sta CurrState
-        txa
-        ora CurrState
-        sta CurrState
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Decrements the current player.
-; Inputs:
-; Outputs       A register (current player):      
-; -----------------------------------------------------------------------------
-    MAC DEC_CURR_PLAYER
-        lda CurrState
-        and #CURR_PLAYER_MASK
-        beq .Zero
-        lda CurrState
-        sec
-        sbc #1
-        sta CurrState
-        and #CURR_PLAYER_MASK
-.Zero
-    ENDM
-#endif
-
 ; Variables
 ; -----------------------------------------------------------------------------
     SEG.U ram
     ORG $80
 
 ; Variables global to the all banks
+; -----------------------------------------------------------------------------
 GlobalVars
+
+FrameCtr                    ds.b 1
+RandNum                     ds.b 1
+RandAlt                     ds.b 1
 
 ; Game state selects which handler is executed on the current frame.
 GS_TITLE_SCREEN             = 0
@@ -386,13 +326,14 @@ GS_MAX                      = GS_INTERMISSION
 GS_START_STATE              = GS_TITLE_SCREEN
 GameState                   ds.b 1
 
-; GameStateFlags
+; Game state flags affect how some graphic elements are displayed.
 GS_SHOW_BETTING_FLAG        = %10000000
 GS_SHOW_DASHBOARD_FLAG      = %01000000
 GS_SHOW_HOLE_CARD_FLAG      = %00100000
 GS_SHOW_DEALER_SCORE_FLAG   = %00010000
 GS_FLICKER_FLAG             = %00001000
 GS_PROMPT_IDX_MASK          = %00000111
+; Bank3_GameStateFlags
 
 ; Task work is a request to interrupt the game to perform ancillary side work
 ; such as shuffling the deck or entering an animation loop.
@@ -417,16 +358,6 @@ CurrBet                     ds.w 1
 ; Currently selected player
 CurrPlayer                  ds.b 1
 
-; Bitmap various state values
-; Bit 7:    show hole card face up or down (1 = face down, 0 = face up)
-; Bit 6:    unused
-; Bit 3-5:  currently selected dashboard menu item
-; Bit 0-2:  currently selected betting menu item
-CURR_HOLE_CARD_MASK         = %10000000
-CURR_DASH_MENU_MASK         = %00111000
-CURR_BET_MENU_MASK          = %00000111
-CurrState                   ds.b 1
-
 ; GameOpts bit flags (options can only be changed on the betting screen)
 ; Bit 7:    hit/stand on soft 17:   left difficulty (1 = hit)
 ; Bit 6:    early/late surrender:   right difficulty (1 = late surrender)
@@ -437,17 +368,26 @@ FLAGS_LATE_SURRENDER        = #%01000000
 NUM_DECKS_MASK              = #%00000011
 GameOpts                    ds.b 1
 
-; Stores a bitmap of all the cards. Discarded cards are flagged as a 1 bit.
-DiscardPile                 ds.b NUM_DISCARD_BYTES
-DealDepth                   ds.b 1
-
 ; 3 BCD bytes per player (big endian)
 PlayerChips                 ds.b NUM_CHIP_BYTES;  NUM_PLAYERS*NUM_CHIP_BYTES
 
-; Some ephemeral variables
-FrameCtr                    ds.b 1
-RandNum                     ds.b 1
-RandAlt                     ds.b 1
+; Variables local the current bank or subroutine
+; -----------------------------------------------------------------------------
+LocalVars
+
+; Bitmap various state values
+; Bit 7:    show hole card face up or down (1 = face down, 0 = face up)
+; Bit 6:    unused
+; Bit 3-5:  currently selected dashboard menu item
+; Bit 0-2:  currently selected betting menu item
+CURR_HOLE_CARD_MASK         = %10000000
+CURR_DASH_MENU_MASK         = %00111000
+CURR_BET_MENU_MASK          = %00000111
+CurrState                   ds.b 1
+
+; Stores a bitmap of all the cards. Discarded cards are flagged as a 1 bit.
+DiscardPile                 ds.b NUM_DISCARD_BYTES
+DealDepth                   ds.b 1
 
 ; Previous values of of SWCHA and INPT4
 JoySWCHA                    ds.b 1
@@ -607,7 +547,7 @@ PlayerPileScore             ds.b NUM_HANDS      ; score of off screen cards
 SpritePtrs                  ds.w NUM_VISIBLE_CARDS
 
 ; Variables local to the current bank
-LocalVars                   dc.b 7
+;LocalVars                   dc.b 7
 
 MemBlockEnd
 

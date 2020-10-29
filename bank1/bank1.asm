@@ -19,7 +19,7 @@ HORIZON_COLOR       = COLOR_LLGREEN
 HILLS_COLOR         = COLOR_MGREEN
 
 ; ship positions
-SHIP_Y_POS          = UPPER_FG_HEIGHT + SHIP_HEIGHT
+SHIP_Y_POS          = UPPER_FG_HEIGHT + SHIP_HEIGHT + 4
 SHIP_X_END          = 86
 
 CASINO_Y_POS        = 22
@@ -27,18 +27,15 @@ CASINO_Y_POS        = 22
 ; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
-AtmosHeight     SET MemBlockStart
-FgHeight        SET MemBlockStart+1
-ShipPosX        SET MemBlockStart+2
-ShipPosY        SET MemBlockStart+3
-JoyTimer        SET MemBlockStart+4
-FlamePosY       SET MemBlockStart+6
-FlamePtr        SET MemBlockStart+6
-TempHeight      SET MemBlockStart+8
-CasinoColor     SET MemBlockStart+9
-CasinoPtr0      SET MemBlockStart+10
-CasinoPtr1      SET MemBlockStart+12
-SoundLoops      SET MemBlockStart+13
+AtmosHeight     SET LocalVars
+FgHeight        SET LocalVars+1
+TempHeight      SET LocalVars+2
+ShipPosX        SET LocalVars+3
+ShipPosY        SET LocalVars+4
+CasinoColor     SET LocalVars+5
+CasinoPtr0      SET LocalVars+6
+CasinoPtr1      SET LocalVars+8
+FlamePtr        SET LocalVars+10
 
 Bank1_Reset
     ; switch to bank 0 if we start here
@@ -46,7 +43,7 @@ Bank1_Reset
 
 Bank1_Init
     ; joystick delay
-    lda #1
+    lda #JOY_TIMER_DELAY
     sta JoyTimer
 
     lda #ATMOS_HEIGHT-1
@@ -56,8 +53,6 @@ Bank1_Init
 
     lda #SHIP_Y_POS
     sta ShipPosY
-    lda #0
-    sta FlamePosY
 
     lda #%00001000
     sta REFP0
@@ -353,10 +348,21 @@ Bank1_Overscan SUBROUTINE
 
     ; update joystick timer
     ldx JoyTimer
-    beq .SkipTimer
-    inx
+    bne .DecReturn
+    jsr Bank1_ReadJoystick
+    rts
+.DecReturn
+    dex
     stx JoyTimer
-.SkipTimer
+    rts
+
+#if 0
+    ; update joystick timer
+    ldx JoyTimer
+    beq .NoUpdate
+    dex
+    stx JoyTimer
+.NoUpdate
 
     ; joystick delay
     lda JoyTimer
@@ -366,6 +372,7 @@ Bank1_Overscan SUBROUTINE
 .DoJoystick
     jsr Bank1_ReadJoystick
 .SkipJoystick
+#endif
     rts
 
 Bank1_MoveShip SUBROUTINE
@@ -388,7 +395,6 @@ Bank1_MoveShip SUBROUTINE
     lda ShipPosY
     adc Bank1_MotionJitterY,x
     sta ShipPosY
-    sta FlamePosY
     rts
 
 Bank1_FadeInCasino
@@ -446,9 +452,9 @@ Bank1_ReadJoystick SUBROUTINE
     ; reset stack
     pla
     pla
+    pla
+    pla
 
-    lda #GS_NEW_GAME
-    sta GameState
     JUMP_BANK PROC_BANK2_INIT, 2
 
 .Return
@@ -551,7 +557,7 @@ Bank1_MotionJitterY
 ; Sound
 ; -----------------------------------------------------------------------------
     include "bank1/lib/sound.asm"
-    include "sys/bank1_sound.asm"
+    include "sys/bank1_sound_data.asm"
 
     IF BALLAST_ON == 1
         ; ballast code

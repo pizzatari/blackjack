@@ -8,9 +8,8 @@
 ; Local Variables
 ; -----------------------------------------------------------------------------
 ; Kernel
-IdleTimer   SET LocalVars+7
-PalIdx1     SET LocalVars+8
-PalIdx2     SET LocalVars+9
+PalIdx1     SET LocalVars
+PalIdx2     SET LocalVars+1
 
 ; -----------------------------------------------------------------------------
 ; Subroutines
@@ -29,11 +28,7 @@ Bank0_Init
     CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
     CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
 
-    lda #0
-    sta IdleTimer
-
 Bank0_FrameStart SUBROUTINE
-
     ; -------------------------------------------------------------------------
     ; vertical sync
     ; -------------------------------------------------------------------------
@@ -85,12 +80,11 @@ Bank0_TitleKernel
     sta TIM64T
     jsr Bank0_DrawTitleGraphic
 
-    lda #$ff                    ; 2 (19)
-    sta WSYNC
-    sta PF0                     ; 3 (3)
-    sta PF2                     ; 3 (6)
     lda #COLOR_BLACK
     sta WSYNC
+    sta PF0
+    sta PF1
+    sta PF2
     sta COLUP0
     sta COLUP1
     sta COLUPF
@@ -103,16 +97,29 @@ Bank0_TitleKernel
 
     SET_6_POINTERS SpritePtrs, Bank0_TitleCards
 
+    ldx #$ff
+    stx WSYNC
+    stx PF0
+    stx PF1
+    stx PF2
+
     ldx #COLOR_BLACK
     ldy #TITLE_CARDS_HEIGHT-1
     jsr DrawColor6Sprite56
 
     lda #COLOR_BLACK
+    sta WSYNC
+    sta PF0
+    sta PF1
+    sta PF2
+    sta GRP0
+    sta GRP1
+    sta GRP0
     sta COLUPF
     sta COLUP0
     sta COLUP1
 
-    SLEEP_LINES 13
+    SLEEP_LINES 12
     SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleEdition
 
     lda #>Bank0_EditionPalette  ; 2 (2)
@@ -125,6 +132,7 @@ Bank0_TitleKernel
     lda #$ff                    ; 2 (19)
     sta WSYNC
     sta PF0                     ; 3 (3)
+    sta PF1                     ; 3 (3)
     sta PF2                     ; 3 (6)
 
     ldx #COLOR_BLACK            ; 2 (8)
@@ -189,7 +197,6 @@ Bank0_TitleKernel
     sta GRP0                    ; 3 (9)
     sta COLUP0                  ; 3 (12)
     sta COLUP1                  ; 3 (15)
-
     sta VDELP0                  ; 3 (18)
     sta VDELP1                  ; 3 (21)
 
@@ -210,20 +217,10 @@ Bank0_Overscan
     ; read input
     jsr Bank0_ReadJoystick
 
-    ; check for idle timeout
-    inc IdleTimer
-
     ; check for button press
     lda #JOY_FIRE_PACKED_MASK
     bit JoyRelease
     beq .Continue
-
-    ; clear any joystick events
-    lda #0
-    sta JoyRelease
-
-    lda #GS_NEW_GAME
-    sta GameState
 
     JUMP_BANK PROC_BANK1_INIT, 1
 
@@ -247,6 +244,8 @@ Bank0_Overscan
 Bank0_InitGlobals SUBROUTINE
     lda #GS_START_STATE
     sta GameState
+    lda #%00001111
+    sta SWACNT
     lda SWCHA
     sta JoySWCHA
     lda SWCHB
@@ -441,6 +440,80 @@ Bank0_ReadJoystick SUBROUTINE
     stx JoySWCHA
     sty JoyINPT4
     rts
+
+Bank0_DetectKeypad SUBROUTINE
+    ; write random pattern
+    ; read it back
+    rts
+
+Bank0_ReadKeypad SUBROUTINE
+#if 0
+    ldx #0
+    sec
+    lda #%11110111
+
+.NextRow
+    sta SWCHA
+
+    ; wait 500ms
+;    ldy #120
+    ldy #3
+.BusyWait
+    dey
+    bne .BusyWait
+
+    ldy INPT5
+    bpl .ThirdPressed
+    ldy INPT3
+    bpl .SecondPressed
+    ldy INPT2
+    bpl .FirstPressed
+
+    inx
+    inx
+    inx
+
+    ;ror
+    ;bcs .NextRow
+
+    ldx #-3         ; no key pressed
+    
+.ThirdPressed
+    inx
+.SecondPressed
+    inx
+.FirstPressed
+    inx
+
+    stx KeyPress
+#endif
+    rts
+
+#if 0
+.readkeypad
+    lda #$FF
+    ldx #12
+    clc
+.new_row
+    ror
+    sta SWCHA
+    ldy #120
+.wait
+    dey
+    bne .wait
+    bit INPT4
+    bpl .keypressed
+    dex
+    bit INPT1
+    bpl .keypressed
+    dex
+    bit INPT0
+    bpl .keypressed
+    dex
+    bne .new_row
+.keypressed
+    rts
+#endif
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Implements the game screen kernel.
@@ -694,8 +767,16 @@ Bank0_Draw6Sprites SUBROUTINE
 ; Ouputs:
 ; -----------------------------------------------------------------------------
 Bank0_GameIO SUBROUTINE
+    ; update joystick timer
+    ldx JoyTimer
+    bne .DecReturn
     jsr Bank0_ReadSwitches
     jsr Bank0_ReadJoystick
+    jsr Bank0_ReadKeypad
+    rts
+.DecReturn
+    dex
+    stx JoyTimer
     rts
 
 ; -----------------------------------------------------------------------------

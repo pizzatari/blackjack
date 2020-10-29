@@ -8,7 +8,7 @@
 ;   Bank 0:     title vertical blank & overscan
 ;              *title kernel & data
 ;              *betting kernel & data
-;   Bank 1:     sound routines & data
+;   Bank 1:     sound driver & data
 ;               intermission vertical blank & overscan
 ;              *intermission kernel & data
 ;   Bank 2:     game vertical blank & overscan
@@ -57,7 +57,7 @@ PIP_COLORS                  = 0
 ;   0 = off
 ;   1 = non-random numbers
 ;   2 = random cards
-TEST_RAND_ON                = 0
+TEST_RAND_ON                = 2
 TEST_TIME_ON                = 0
 TEST_TIMING_ON              = 0
 TEST_STACK_DEBUG            = 0
@@ -129,7 +129,7 @@ TIME_CHIP_MENU_SETUP        = 2*76/8    ; TIM8T (19)
 TIME_CHIP_DENOM             = 6*76/8    ; TIM8T (57)
 TIME_STATUS_BAR             = 4*76/8    ; TIM8T (38)
 
-JOY_TIMER_DELAY             = 60        ; num frames (1 second)
+JOY_TIMER_DELAY             = 30        ; num frames (1 second)
 
 NUSIZE_3_MEDIUM             = %00000110
 NUSIZE_3_CLOSE              = %00000011
@@ -191,8 +191,6 @@ NUM_DISCARD_BYTES           = NUM_CARDS / 8
 NUM_VISIBLE_CARDS           = 6
 NUM_SPRITES                 = NUM_VISIBLE_CARDS
 
-DEAL_PENETRATION            = NUM_DECKS * 52 / 4 * 3
-
 ; Sprite indexes
 CHIPS_IDX                   = 0
 DENOMS_IDX                  = 1
@@ -227,54 +225,6 @@ PLAYER1_CHIPS_OFFSET        = NUM_CHIP_BYTES * PLAYER1_IDX
 
 NEW_PLAYER_CHIPS            = $1000     ; BCD value
 
-; -----------------------------------------------------------------------------
-; Macros
-; -----------------------------------------------------------------------------
-    MAC DIVIDER_LINE
-.COLOR  SET {1}
-        ; draw divider line
-        lda #.COLOR
-        sta COLUBK
-        sta WSYNC
-    ENDM
-
-    MAC CLEAR_GRAPHICS
-        sta WSYNC
-        lda #0
-        sta GRP0
-        sta GRP1
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Returns the current dashboard menu selection.
-; Inputs:
-; Outputs:      A register (menu selection)
-; -----------------------------------------------------------------------------
-    MAC GET_DASH_MENU
-        lda CurrState
-        and #CURR_DASH_MENU_MASK
-        lsr
-        lsr
-        lsr
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Sets the current dashboard menu selection.
-; Inputs:       Y register (menu selection)
-; Outputs:
-; -----------------------------------------------------------------------------
-    MAC SET_DASH_MENU
-        lda CurrState
-        and #~CURR_DASH_MENU_MASK
-        sta CurrState
-        tya
-        asl
-        asl
-        asl
-        ora CurrState
-        sta CurrState
-    ENDM
-
 ; Variables
 ; -----------------------------------------------------------------------------
     SEG.U ram
@@ -283,10 +233,6 @@ NEW_PLAYER_CHIPS            = $1000     ; BCD value
 ; Variables global to the all banks
 ; -----------------------------------------------------------------------------
 GlobalVars
-
-FrameCtr                    ds.b 1
-RandNum                     ds.b 1
-RandAlt                     ds.b 1
 
 ; Game state selects which handler is executed on the current frame.
 GS_TITLE_SCREEN             = 0
@@ -335,59 +281,23 @@ GS_FLICKER_FLAG             = %00001000
 GS_PROMPT_IDX_MASK          = %00000111
 ; Bank3_GameStateFlags
 
-; Task work is a request to interrupt the game to perform ancillary side work
-; such as shuffling the deck or entering an animation loop.
-TSK_NONE                    = 0
-TSK_DEAL_CARD               = 1
-TSK_FLIP_CARD               = 2
-TSK_SHUFFLE                 = 3
-TSK_DEALER_DISCARD          = 4
-TSK_PLAYER1_DISCARD         = 5
-TSK_PLAYER2_DISCARD         = 6
-TSK_BLACKJACK               = 7
-TSK_POPUP_OPEN              = 8
-TSK_MAX                     = TSK_POPUP_OPEN
-TaskQueue                   ds.b 2
-TaskArg                     ds.b 2
+; Ephemeral values
+FrameCtr                    ds.b 1
+RandNum                     ds.b 1
+RandAlt                     ds.b 1
+JoyTimer                    ds.b 1
 
-;ARG_CARD_FLIP_DURATION      = 30
-ARG_POPUP_OPEN              = POPUP_HEIGHT
-
-; Current bet amount: BCD (big endian): [MSB, LSB]
-CurrBet                     ds.w 1
-; Currently selected player
-CurrPlayer                  ds.b 1
-
-; GameOpts bit flags (options can only be changed on the betting screen)
-; Bit 7:    hit/stand on soft 17:   left difficulty (1 = hit)
-; Bit 6:    early/late surrender:   right difficulty (1 = late surrender)
-; Bit 2-5:  unused
-; Bit 0-1:  number of decks - 1:    incremented by game select button
-FLAGS_HIT_SOFT17            = #%10000000
-FLAGS_LATE_SURRENDER        = #%01000000
-NUM_DECKS_MASK              = #%00000011
-GameOpts                    ds.b 1
-
-; 3 BCD bytes per player (big endian)
-PlayerChips                 ds.b NUM_CHIP_BYTES;  NUM_PLAYERS*NUM_CHIP_BYTES
-
-; Variables local the current bank or subroutine
-; -----------------------------------------------------------------------------
-LocalVars
-
-; Bitmap various state values
-; Bit 7:    show hole card face up or down (1 = face down, 0 = face up)
-; Bit 6:    unused
-; Bit 3-5:  currently selected dashboard menu item
-; Bit 0-2:  currently selected betting menu item
-CURR_HOLE_CARD_MASK         = %10000000
-CURR_DASH_MENU_MASK         = %00111000
-CURR_BET_MENU_MASK          = %00000111
-CurrState                   ds.b 1
-
-; Stores a bitmap of all the cards. Discarded cards are flagged as a 1 bit.
-DiscardPile                 ds.b NUM_DISCARD_BYTES
-DealDepth                   ds.b 1
+; 1 = release event; 0 = no event
+; Bit 7:    right
+; Bit 6:    left
+; Bit 5:    down
+; Bit 4:    up
+; Bit 3:    fire
+; Bit 2:    (unused)
+; Bit 1:    select
+; Bit 0:    (unused)
+JoyRelease                  ds.b 1
+KeyPress                    ds.b 1
 
 ; Previous values of of SWCHA and INPT4
 JoySWCHA                    ds.b 1
@@ -429,8 +339,81 @@ SOUND_LOOPS_MASK            = %00001111
 SoundCtrl                   ds.b SOUND_QUEUE_LEN
 
 ;
-; Sprite animation queue
+; Variables global to 1+ banks
+; -----------------------------------------------------------------------------
+BankVars
+
+; Task work is a request to interrupt the game to perform ancillary side work
+; such as shuffling the deck or entering an animation loop.
+TSK_NONE                    = 0
+TSK_DEAL_CARD               = 1
+TSK_FLIP_CARD               = 2
+TSK_SHUFFLE                 = 3
+TSK_DEALER_DISCARD          = 4
+TSK_PLAYER1_DISCARD         = 5
+TSK_PLAYER2_DISCARD         = 6
+TSK_BLACKJACK               = 7
+TSK_POPUP_OPEN              = 8
+TSK_MAX                     = TSK_POPUP_OPEN
+TaskQueue                   ds.b 2
+TaskArg                     ds.b 2
+
+;ARG_CARD_FLIP_DURATION      = 30
+ARG_POPUP_OPEN              = POPUP_HEIGHT
+
+; Current bet amount: BCD (big endian): [MSB, LSB]
+CurrBet                     ds.b 2
+; Currently selected player
+CurrPlayer                  ds.b 1
+
+; GameOpts bit flags (options can only be changed on the betting screen)
+; Bit 7:    hit/stand on soft 17:   left difficulty (1 = hit)
+; Bit 6:    early/late surrender:   right difficulty (1 = late surrender)
+; Bit 2-5:  unused
+; Bit 0-1:  number of decks - 1:    incremented by game select button
+FLAGS_HIT_SOFT17            = #%10000000
+FLAGS_LATE_SURRENDER        = #%01000000
+NUM_DECKS_MASK              = #%00000011
+GameOpts                    ds.b 1
+
+; 3 BCD bytes per player (big endian)
+PlayerChips                 ds.b NUM_CHIP_BYTES;  NUM_PLAYERS*NUM_CHIP_BYTES
+
+; Bitmap various state values
+; Bit 7:    show hole card face up or down (1 = face down, 0 = face up)
+; Bit 6:    unused
+; Bit 3-5:  currently selected dashboard menu item
+; Bit 0-2:  currently selected betting menu item
+CURR_HOLE_CARD_MASK         = %10000000
+CURR_DASH_MENU_MASK         = %00111000
+CURR_BET_MENU_MASK          = %00000111
+CurrState                   ds.b 1
+
+; Stores a bitmap of all the cards. Discarded cards are flagged as a 1 bit.
+DiscardPile                 ds.b NUM_DISCARD_BYTES
+DealDepth                   ds.b 1
+
+; -----------------------------------------------------------------------------
+; Variables within this block are reset to zero upon starting a new game.
+MemBlockStart
+
+; Variables local the current bank or subroutine
+; -----------------------------------------------------------------------------
+LocalVars
+
+; Animation state
 ;
+; The animation driver idenfies animation objects as a grid of col x row
+; sprites. Currently the grid is 6x7, but expandable up to 6x15.
+;
+; The animation queue is a list of currently animating sprites. Currently
+; only 2 sprites can be simultaneously animated.
+;
+ANIM_ROW_MASK               = %11111000
+ANIM_COL_MASK               = %00000111
+ANIM_LOOP_MASK              = %11100000
+ANIM_FRAME_MASK             = %00011111
+
 ANIM_QUEUE_LEN              = 2
 AnimID                      ds.b ANIM_QUEUE_LEN ; (animation id)
 AnimPosition                ds.b ANIM_QUEUE_LEN ; (row, column)
@@ -439,59 +422,8 @@ AnimConfig                  ds.b ANIM_QUEUE_LEN ; (loops, frames)
 ANIM_ID_NONE                = 0
 ANIM_ID_FLIP_CARD           = 1
 ANIM_ID_FLIP_SUIT           = 2
-
-ANIM_ROW_MASK               = %11111000
-ANIM_COL_MASK               = %00000111
-ANIM_LOOP_MASK              = %11100000
-ANIM_FRAME_MASK             = %00011111
-
-#if 0
-; Sprite animation queue
-;
-; The sprites that can be animated are identified by a grid of
-; NUM_SPRITES x N sprites. Specific sprites are identified by column and row
-; pairs. Currently, the grid is 6x7, but expandable up to 6x15.
-;
-; The animation queue is a list of sprites that are currently being animated.
-; Each queue element is a column and row pair identifying which sprite is being
-; currently animated. Currently 2 sprites can be simultaneously animated.
-;
-; Byte 0:               column and row
-; Byte 1:               column and row
-; Column and row bits:
-;   Column:             7 6 5 4   
-;   Row:                3 2 1 0
-;
-; Sprite animation queue
-;
-ANIM_ID_NONE                = -1
-ANIM_ID_CHIP_STACK          = 0
-ANIM_ID_CHIP_SHINE          = 1
-ANIM_ID_FLIP_CARD           = 2
-ANIM_ID_FLIP_SUIT           = 3
-ANIM_QUEUE_LEN              = 2
-AnimID                      ds.b ANIM_QUEUE_LEN ; animation id
-AnimColumn                  ds.b ANIM_QUEUE_LEN ; position on screen
-AnimRow                     ds.b ANIM_QUEUE_LEN ; position on screen
-AnimCurrFrame               ds.b ANIM_QUEUE_LEN ; current frame
-;AnimDuration                ds.b ANIM_QUEUE_LEN ; duration of a frame
-;AnimLoops                   ds.b ANIM_QUEUE_LEN ; number of loops
-#endif
-
-; -----------------------------------------------------------------------------
-; Variables within this block are reset to zero upon starting a new game.
-MemBlockStart
-
-; 1 = release event; 0 = no event
-; Bit 7:    right
-; Bit 6:    left
-; Bit 5:    down
-; Bit 4:    up
-; Bit 3:    fire
-; Bit 2:    (unused)
-; Bit 1:    select
-; Bit 0:    (unused)
-JoyRelease                  ds.b 1
+;ANIM_ID_CHIP_STACK         = 3
+;ANIM_ID_CHIP_SHINE         = 4
 
 ; GameFlags bit flags
 ; Bit 7:    split taken
@@ -545,30 +477,72 @@ PlayerPileScore             ds.b NUM_HANDS      ; score of off screen cards
 
 ; Rendering variables
 SpritePtrs                  ds.w NUM_VISIBLE_CARDS
+TempPtr                     ds.w 1
+Arg1                        ds.b 1
+Arg2                        ds.b 1
 
-; Variables local to the current bank
-;LocalVars                   dc.b 7
+; Variables temporary to subroutines
+; -----------------------------------------------------------------------------
+TempVars
 
 MemBlockEnd
 
-; Temporary variables and arguments
-TempPtr                     SET LocalVars
-Arg1                        SET LocalVars+2
-Arg2                        SET LocalVars+3
-Arg3                        SET LocalVars+4
-Arg4                        SET LocalVars+5
-Arg5                        SET LocalVars+6
-
-; For scaline debugging
-ScanDebug SET PlayerCards+#5
-
     RAM_BYTES_USAGE
 
-    SEG rom
+; For scaline debugging
+ScanDebug                   SET PlayerCards+#5
 
+
+; -----------------------------------------------------------------------------
+; Macros
+; -----------------------------------------------------------------------------
+    MAC DIVIDER_LINE
+.COLOR  SET {1}
+        ; draw divider line
+        lda #.COLOR
+        sta COLUBK
+        sta WSYNC
+    ENDM
+
+    MAC CLEAR_GRAPHICS
+        sta WSYNC
+        lda #0
+        sta GRP0
+        sta GRP1
+    ENDM
+
+; -----------------------------------------------------------------------------
+; Returns the current dashboard menu selection.
+; Inputs:
+; Outputs:      A register (menu selection)
+; -----------------------------------------------------------------------------
+    MAC GET_DASH_MENU
+        lda CurrState
+        and #CURR_DASH_MENU_MASK
+        lsr
+        lsr
+        lsr
+    ENDM
+
+; -----------------------------------------------------------------------------
+; Sets the current dashboard menu selection.
+; Inputs:       Y register (menu selection)
+; Outputs:
+; -----------------------------------------------------------------------------
+    MAC SET_DASH_MENU
+        lda CurrState
+        and #~CURR_DASH_MENU_MASK
+        sta CurrState
+        tya
+        asl
+        asl
+        asl
+        ora CurrState
+        sta CurrState
+    ENDM
+
+    SEG rom
     include "bank0/bank0.asm"
     include "bank1/bank1.asm"
     include "bank2/bank2.asm"
     include "bank3/bank3.asm"
-
-    ;echo "ROM has", (ROM_BYTES_REMAINING)d, "bytes remaining"

@@ -19,6 +19,10 @@ NUM_TEST_RAND SET * - TestRandInts
 
     IF TEST_RAND_ON == 2
 TestCards
+    ; player & dealer have blackjack
+
+    dc.b $01, $71, $3a, $9a
+
     dc.b $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d
     dc.b $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d
     dc.b $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d

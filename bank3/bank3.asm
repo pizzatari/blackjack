@@ -1,4 +1,4 @@
-; -----------------------------------------------------------------------------
+
 ; Start of bank 3
 ; -----------------------------------------------------------------------------
     SEG bank3
@@ -10,30 +10,30 @@
 ; Shared Variables
 ; -----------------------------------------------------------------------------
 ; animation add (shared with Bank2)
-Bank3_SeqPtr SET LocalVars
-Bank3_AddID SET LocalVars+2
-Bank3_AddPos SET LocalVars+3
+Bank3_SeqPtr SET TempVars
+Bank3_AddID SET TempVars+2
+Bank3_AddPos SET TempVars+3
 
 ; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
 ; dashboard rendering
-PF0Bits SET LocalVars
-PF2Bits SET LocalVars+1
+PF0Bits SET TempVars
+PF2Bits SET TempVars+1
 
 ; card rendering
-PlyrIdx SET LocalVars+1
-EndIdx SET LocalVars+2
-AnimIdx SET LocalVars+3
-AnimRow SET LocalVars+4
+PlyrIdx SET TempVars+1
+EndIdx SET TempVars+2
+AnimIdx SET TempVars+3
+AnimRow SET TempVars+4
 
-HoleIdx SET LocalVars+5
-GapIdx SET LocalVars+5
-GapLastElem SET LocalVars+6
+HoleIdx SET TempVars+5
+GapIdx SET TempVars+5
+GapLastElem SET TempVars+6
 
 ; wide sprite rendering
-DrawHeight SET LocalVars+6
-PalettePtr SET LocalVars+7
+;DrawHeight SET TempVars+6
+;PalettePtr SET TempVars+7
 
 Bank3_Reset
     ; switch to bank 0 if we start here
@@ -78,7 +78,7 @@ Bank3_PlayKernel SUBROUTINE
     lsr
     lsr
     lsr
-    sta AnimRow             ; xxx11111
+    sta AnimRow             ; xxx11112
     jmp .Found
 .Next
     dex
@@ -136,17 +136,11 @@ Bank3_PlayKernel SUBROUTINE
     sta PF1
     sta PF2
 
-;        lda #$58
-;        sta COLUBK
-    
     ldy #COLOR_CARDS_IDX
     jsr Bank3_SetColors
     sta WSYNC
     jsr Bank3_SetPlayfield
     sta WSYNC
-
-;        lda #$88
-;        sta COLUBK
 
     ldx #DEALER_IDX
     stx PlyrIdx
@@ -155,17 +149,7 @@ Bank3_PlayKernel SUBROUTINE
     sta WSYNC
     jsr Bank3_SetupCardSprites
 
-;        lda #$18
-;        sta COLUBK
-
-
-;    lda #$e0
-;    sta COLUBK
-
     TIMER_WAIT
-
-;    lda #$0e
-;    sta COLUBK
 
     jsr Bank3_RenderCardSprites
 
@@ -174,7 +158,6 @@ Bank3_PlayKernel SUBROUTINE
     ;sta GRP1
     sta VDELP0
     sta VDELP1
-    ;SLEEP_LINES 2
 
     ; Betting pot row ---------------------------------------------------------
     lda #CHIP_COLOR
@@ -193,8 +176,6 @@ Bank3_PlayKernel SUBROUTINE
     lda #1
     sta VDELP0
     sta VDELP1
-    ;SLEEP_LINES 8
-    ;TIMER_WAIT
 
     lda #30*76/64
     sta TIM64T
@@ -1511,8 +1492,73 @@ Bank3_ClearPlayfield SUBROUTINE
 ; Inputs:        
 ; Ouputs:
 ; -----------------------------------------------------------------------------
+#if 0
 Bank3_DrawMessageBar SUBROUTINE
     DRAW_48_COLOR_SPRITE SpritePtrs, Bank3_MessagePalette
+
+    lda #0
+    sta GRP0
+    sta GRP1
+    ; 2nd write to flush VDEL
+    sta GRP0
+    sta GRP1
+    rts
+#endif
+
+; -----------------------------------------------------------------------------
+; Desc:     Draw a 48 pixel wide color sprite positioned at pixel 56.
+; Inputs:   Y register (sprite height - 1)
+; Outputs:
+; Notes:
+;   ldy #HEIGHT-1
+;   DRAW_48_COLOR_SPRITE SpritePtrs, Palette
+;
+; -----------------------------------------------------------------------------
+Bank3_DrawMessageBar SUBROUTINE
+    sty Arg1
+    ; preload the stack with a column of pixels from SpritePtrs+6
+    ldy #-1                     ; +2
+.Preload
+    iny                         ; +2 (2)
+    lda (SpritePtrs+6),y        ; +5 (7)
+    pha                         ; +3 (10)
+    cpy Arg1                    ; +3 (13)
+    bcc .Preload                ; +3/2 (16)
+
+    sta WSYNC
+    ldy Arg1                    ; +3 (3)
+    SLEEP_56                    ; +56 (59)  burn cycles to align cycle count
+    nop                         ; +2 (61)
+
+.Loop
+    ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+    ; ------------------------------------------------------------------------
+    ldy Arg1                    ; +3  64  192
+    lda (SpritePtrs),y          ; +5  69  207
+    sta GRP0                    ; +3  72  216      D1     --      --     --
+    lda Bank3_MessagePalette,y  ; +4  76  228
+    ; -----------------------------------------------------------------------
+    ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+    sta.w COLUP0                ; +4   4   12
+    sta COLUP1                  ; +3   7   33
+
+    lda (SpritePtrs+2),y        ; +5  12   36
+    sta GRP1                    ; +3  15   45      D1     D1      D2     --
+    lda (SpritePtrs+4),y        ; +5  20   60
+    sta GRP0                    ; +3  23   69      D3     D1      D2     D2
+
+    lda (SpritePtrs+8),y        ; +5  28   84
+    tax                         ; +2  30   90
+    lda (SpritePtrs+10),y       ; +5  35  105
+    tay                         ; +2  37  111
+    pla                         ; +4  41  123                 !
+
+    sta GRP1                    ; +3  44  132      D3     D3      D4     D2!
+    stx GRP0                    ; +3  47  141      D5     D3!     D4     D4
+    sty GRP1                    ; +3  50  150      D5     D5      D6     D4!
+    sta GRP0                    ; +3  53  159      D4*    D5!     D6     D6
+    dec Arg1                    ; +5  58  174                             !
+    bpl .Loop                   ; +3  61  183
 
     lda #0
     sta GRP0
@@ -1857,7 +1903,9 @@ Bank3_Sequences
     ENDIF
 
     include "bank3/gfx/help.asm"        ; must reside within a single page
+    include "bank3/lib/animation.asm"
 
+#if 0
 ; -----------------------------------------------------------------------------
 ; Desc:     Clears and initializes the queue.
 ; Inputs:
@@ -1974,6 +2022,7 @@ AnimationTick SUBROUTINE
 
 .Return
     rts
+#endif
 
     include "bank3/gfx/options.asm"
     include "bank3/gfx/sprites3.asm"
@@ -2186,7 +2235,6 @@ Bank3_ProcTableLo
 
 Bank3_ProcTableHi
     dc.b >Bank2_Overscan
-
 
     ORG BANK3_ORG + $ff6-BS_SIZEOF-$f
     RORG BANK3_RORG + $ff6-BS_SIZEOF-$f

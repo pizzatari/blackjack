@@ -10,22 +10,22 @@
 ; Shared Variables
 ; -----------------------------------------------------------------------------
 ; animation add (shared with Bank3)
-Bank2_AddID   SET LocalVars+2
-Bank2_AddPos  SET LocalVars+3
+Bank2_AddID   SET TempVars+2
+Bank2_AddPos  SET TempVars+3
 
 ; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
 TriggerTimer    = RandAlt
-StackPtr        = LocalVars
-NewCard         = LocalVars+2
-Score           = LocalVars+3
-NumAces         = LocalVars+4
+StackPtr        = TempVars
+NewCard         = TempVars+2
+Score           = TempVars+3
+NumAces         = TempVars+4
 
-FindStart       = LocalVars+2
-BitPos          = LocalVars+3
+FindStart       = TempVars+2
+BitPos          = TempVars+3
 
-PopupCnt        = LocalVars+5
+PopupCnt        = TempVars+5
 
 ; disable trigger after the end of a game: RandAlt is safe to use in the
 ; intermission state (GS_INTERMISSION)
@@ -44,15 +44,18 @@ Bank2_Init
     iny
     bne .Init
 
+    jsr Bank2_ResetGame
+
+    ; joystick delay
+    lda #JOY_TIMER_DELAY
+    sta JoyTimer
+
     lda #0
     sta REFP0
     sta REFP1
-    sta JoyRelease
     sta PlayerChips
-
     lda #>NEW_PLAYER_CHIPS
     sta PlayerChips+1
-
     lda #<NEW_PLAYER_CHIPS
     sta PlayerChips+2
 
@@ -400,52 +403,51 @@ Bank2_IncreasePlayerChips SUBROUTINE
 ; Inputs:
 ; Ouputs:   A (random card)
 ; -----------------------------------------------------------------------------
-;    IF TEST_RAND_ON == 2
-;Bank2_DealCard SUBROUTINE
-;    ldy RandAlt
-;    lda TestCards,y
-;    sta RandNum
-;    iny
-;    cpy #NUM_TEST_CARDS
-;    bne .Skip
-;    ldy #0
-;    lda TestCards,y
-;    sta RandNum
-;.Skip
-;    sty RandAlt
-;    sta Arg1
-;
-;    ;
-;    ; do bookkeeping
-;    ;
-;
-;    lda Arg1
-;    jsr Bank2_FindDiscardPosition       ; input A; output X, Y
-;
-;    ; check the discard pile
-;    lda DiscardPile,y                   ; A = the byte
-;    and Bank2_Power2,x                  ; isolate the bit
-;    beq .NotDiscarded
-;
-;    lda Arg1
-;    jsr Bank2_FindNextAvailableCard      ; input X, Y; output A, X, Y
-;    sta Arg1
-;.NotDiscarded
-;
-;    ; mark the card as discarded
-;    lda DiscardPile,y                   ; load the byte
-;    ora Bank2_Power2,x                  ; set the bit on
-;    sta DiscardPile,y                   ; store the byte
-;
-;    ; track how many cards have been dealt
-;    clc
-;    inc DealDepth
-;    lda DealDepth
-;
-;    lda Arg1
-;    rts
-;    ELSE
+    IF TEST_RAND_ON == 2
+Bank2_DealCard SUBROUTINE
+    ldy RandAlt
+    lda TestCards,y
+    sta RandNum
+    iny
+    cpy #NUM_TEST_CARDS
+    bne .Skip
+    ldy #0
+    lda TestCards,y
+    sta RandNum
+.Skip
+    sty RandAlt
+    sta Arg1
 
+    ;
+    ; do bookkeeping
+    ;
+
+    lda Arg1
+    jsr Bank2_FindDiscardPosition       ; input A; output X, Y
+
+    ; check the discard pile
+    lda DiscardPile,y                   ; A = the byte
+    and Bank2_Power2,x                  ; isolate the bit
+    beq .NotDiscarded
+
+    lda Arg1
+    jsr Bank2_FindNextAvailableCard      ; input X, Y; output A, X, Y
+    sta Arg1
+.NotDiscarded
+
+    ; mark the card as discarded
+    lda DiscardPile,y                   ; load the byte
+    ora Bank2_Power2,x                  ; set the bit on
+    sta DiscardPile,y                   ; store the byte
+
+    ; track how many cards have been dealt
+    clc
+    inc DealDepth
+    lda DealDepth
+
+    lda Arg1
+    rts
+    ELSE
 Bank2_DealCard SUBROUTINE
     ; Calculate next random number with Galois LFSR ($b8)
     lda RandNum
@@ -529,7 +531,7 @@ Bank2_DealCard SUBROUTINE
 NumDecksMask
     ; decks:  0          0,1       0,1,2,3     0,1,2,3
     dc.b #%00111111, #%01111111, #%11111111, #%11111111
-;    ENDIF
+    ENDIF
 
 ; -----------------------------------------------------------------------------
 ; Card bit format:
@@ -658,8 +660,6 @@ Bank2_DiscardBytes
 ; Notes:    This searches within the same row (rank) for an alternate card.
 ;           If no free card is found, it continues searhing in ascending order.
 ;           The search wraps around the bottom.
-;
-; TODO:     Make the subroutine work with 1 & 2 decks.
 ; -----------------------------------------------------------------------------
 #if 1
 Bank2_FindNextAvailableCard SUBROUTINE
@@ -1635,13 +1635,7 @@ WaitTitleScreen SUBROUTINE
 
 ; begins new game
 ActionNewGame SUBROUTINE
-    ; clear memory
-    ldx #0
-    ldy #(MemBlockEnd - MemBlockStart)
-.Memset
-    stx MemBlockStart,y
-    dey
-    bpl .Memset
+    jsr Bank2_ResetGame
 
     ; assign to blank sprites
     lda #<BlankCard
@@ -1665,7 +1659,12 @@ ActionNewGame SUBROUTINE
     ; seed random number
     lda FrameCtr
     sta RandNum
-    lda #1
+
+    IF TEST_RAND_ON == 2
+        lda #0
+    ELSE
+        lda INTIM
+    ENDIF
     sta RandAlt
 
     ; advance game state to betting round
@@ -1775,6 +1774,7 @@ WaitPlayerBet SUBROUTINE
     lda CurrBet
     adc CurrBet+1
     bne .FirstDeal
+
     lda #SOUND_ID_ERROR
     sta Arg1
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
@@ -1811,9 +1811,7 @@ ActionPlayerBetDown SUBROUTINE
     jsr Bank2_IncreasePlayerChips
 
 .Return
-    ;jsr Bank2_ClearEvents
     cld
-
     lda #GS_PLAYER_BET
     sta GameState
     rts
@@ -1838,9 +1836,7 @@ ActionPlayerBetUp SUBROUTINE
 .AllowBet
     jsr Bank2_DecreasePlayerChips
 .Return
-    ;jsr Bank2_ClearEvents
     cld
-
     lda #GS_PLAYER_BET
     sta GameState
     rts
@@ -3036,6 +3032,32 @@ Bank2_GameClearSprites SUBROUTINE
 Bank2_ClearEvents SUBROUTINE
     lda #0
     sta JoyRelease
+    rts
+
+; -----------------------------------------------------------------------------
+; Desc:     Erases game memory.
+; Inputs:
+; Ouputs:
+; -----------------------------------------------------------------------------
+Bank2_ResetGame
+    ; clear memory
+    ldx #0
+    ldy #(MemBlockEnd - MemBlockStart)
+.Memset
+    stx MemBlockStart,y
+    dey
+    bpl .Memset
+
+    lda #GS_NEW_GAME
+    sta GameState
+
+    ; clear any joystick events
+    lda #0
+    sta JoyRelease
+    lda #$ff
+    sta JoySWCHA
+    sta JoySWCHB
+    sta JoyINPT4
     rts
 
     include "bank2/lib/task-8bit.asm"

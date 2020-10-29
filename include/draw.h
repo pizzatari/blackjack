@@ -54,66 +54,6 @@
     bpl  .Loop          ; +3 (56)  183
     ENDM
 
-; stack based version
-    MAC DRAW_RAINBOW_GRAPHIC2
-.GFX_ADDR   SET {1}
-
-.GFX0   SET {1}0
-.GFX1   SET {1}1
-.GFX2   SET {1}2
-.GFX3   SET {1}3
-.GFX4   SET {1}4
-.GFX5   SET {1}5
-
-    sty CurrY
-
-    ; preload the stack with .PTRS+6 column of pixels
-    ldy #-1             ; +2
-.Preload
-    iny                 ; +2 (2)
-    lda .GFX3,y         ; +5 (7)
-    pha                 ; +3 (10)
-    cpy CurrY           ; +3 (13)
-    bcc .Preload        ; +3/2 (16)
-
-    ; align so that the firt GRP0A write lands on cpu cycle 41 (tia 123)
-    sta WSYNC
-    nop                 ; +2
-    ldy CurrY           ; +3
-    SLEEP_56            ; +56
-
-.Loop
-    ;                 Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    ; --------------------------------------------------------------------
-    ldy  CurrY          ; +3  59  192
-    lda  .GFX0,y        ; +4  63  207
-    sta  GRP0           ; +3  66  216      D1     --      --     --
-    lda  INTIM          ; +4  70
-    sta  COLUP0         ; +3  73
-    sta  COLUP1         ; +3  76
-    ; --------------------------------------------------------------------
-    ;                 Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    lda  .GFX1,y        ; +4   4   15
-    sta  GRP1           ; +3   7   24      D1     D1      D2     --
-    lda  .GFX2,y        ; +4  11   39
-    sta  GRP0           ; +3  14   48      D3     D1      D2     D2
-
-    lda  .GFX4,y        ; +4  18   87
-    tax                 ; +2  20   93
-    lda  .GFX5,y        ; +4  24  108
-    tay                 ; +2  26  114
-    pla                 ; +4  30  128
-
-    bit $0              ; +3  33
-    bit $0              ; +3  36
-
-    sta  GRP1           ; +3  39  132      D3     D3      D4     D2!
-    stx  GRP0           ; +3  42  141      D5     D3!     D4     D4
-    sty  GRP1           ; +3  45  150      D5     D5      D6     D4!
-    sta  GRP0           ; +3  48  159      D4*    D5!     D6     D6
-    dec  CurrY          ; +5  53  174                             !
-    bpl  .Loop          ; +3  56  183
-    ENDM
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw a 48 pixel wide sprite.
@@ -288,9 +228,9 @@
 
         ; align so that the firt GRP0A write lands on cpu cycle 41 (tia 123)
         sta WSYNC
-        SLEEP_56            ; +56  56   align to start of the next scan line
-        tya                 ;  +2  58 
-        sta.w Arg1          ;  +4  62
+        tya                 ; 2  (2)
+        sta.w Arg1          ; 4  (6)
+        SLEEP_56            ; 56 (62)   align to start of the next scan line
 
 .Loop
         ;                     Cycles  Pixel    GRP0   GRP0A   GRP1   GRP1A
@@ -335,7 +275,7 @@
 
         ; save stack pointer
         tsx
-        stx Arg3
+        stx Arg1
 
         ; set sp = y
         tya
@@ -381,143 +321,11 @@
         bpl  .Loop          ; +3  63
 
         ; restore stack pointer
-        ldx Arg3
-        txs
-    ENDM
-#endif
-#if 1
-    MAC DRAW_COLOR_PTRS
-.PTRS1      SET {1}
-.PTRS2      SET {2}
-.PALETTE    SET {3}
-
-        ; align so that the firt GRP0A write lands on cpu cycle 41 (tia 123)
-        sta WSYNC
-        sty Arg1            ; 3 (3)
-
-        ; save stack pointer
-        tsx                 ; 2 (5)
-        stx Arg3            ; 3 (8)
-
-        ; prime the colors
-        lda .PALETTE,y      ; 4 (12)
-        sta  COLUP0         ; 3 (15)
-        sta  COLUP1         ; 3 (18)
-
-        SLEEP_45            ; 45 (63)   align the next scan line
-        ldy Arg1            ; 3 (66)
-
-        ; even/odd scan lines
-.Loop
-        ;                     Cycles  GRP0   GRP0A   GRP1   GRP1A
-        ; --------------------------------------------------------------------
-        lda (.PTRS1),y      ; 5 (73)
-        sta GRP0            ; 3 (76)   D1     --      --     --
-        lda (.PTRS1+2),y    ; 5 (5)
-        sta GRP1            ; 3 (8)   D1     D1      D2     --
-        lda (.PTRS1+4),y    ; 5 (13)
-        sta GRP0            ; 3 (16)  D3     D1      D2     D2
-        lda (.PTRS1+6),y    ; 5 (21)
-        sta Arg2            ; 3 (24)
-        lda (.PTRS1+8),y    ; 5 (29)
-        tax                 ; 2 (31)
-        lda (.PTRS1+10),y   ; 5 (36)
-        tay                 ; 2 (38)
-        lda Arg2            ; 3 (41)           !
-        sta GRP1            ; 3 (44)  D3     D3      D4     D2!
-        stx GRP0            ; 3 (47)  D5     D3!     D4     D4
-        sty GRP1            ; 3 (50)  D5     D5      D6     D4!
-        sta GRP0            ; 3 (53)  D4*    D5!     D6     D6
-
-        ; --------------------------------------------------------------------
-        ldy Arg1            ; 3 (56)
-        dey                 ; 2 (58)
-        lda .PALETTE,y      ; 4 (62)
-        sta  COLUP0         ; 3 (65)
-        sta  COLUP0         ; 3 (68)
-
-        ;                     Cycles  GRP0   GRP0A   GRP1   GRP1A
-        ; --------------------------------------------------------------------
-        lda (.PTRS2),y      ; 5 (73)
-        sta GRP0            ; 3 (76)   D1     --      --     --
-        lda (.PTRS2+2),y    ; 5 (5)
-        sta GRP1            ; 3 (8)   D1     D1      D2     --
-        lda (.PTRS2+4),y    ; 5 (13)
-        sta GRP0            ; 3 (16)  D1     D2     D2
-        lda (.PTRS2+6),y    ; 5 (21)
-        sta Arg2            ; 3 (25)
-        lda (.PTRS2+8),y    ; 5 (30)
-        tax                 ; 2 (32)
-        lda (.PTRS2+10),y   ; 5 (37)
-        tay                 ; 2 (39)
-        lda Arg2            ; 3 (42)           !
-        sta GRP1            ; 3 (45)  D3     D3      D4     D2!
-        stx GRP0            ; 3 (48)  D5     D3!     D4     D4
-        sty GRP1            ; 3 (51)  D5     D5      D6     D4!
-        sta GRP0            ; 3 (54)  D4*    D5!     D6     D6
-
-        nop                 ; 2 (56)
-
-        lda Arg1            ; 3 (59)
-        sbc #2              ; 2 (61)
-        sta Arg1            ; 3 (65)
-        tay                 ; 2 (67)
-        bpl  .Loop          ; 3 (70)
-
-        ; restore stack pointer
-        ldx Arg3
+        ldx Arg1
         txs
     ENDM
 #endif
 
-; -----------------------------------------------------------------------------
-; Desc:     Draws a 48 bit color sprite with a repeating pattern.
-; Inputs:   address to 1 sprite graphic, palette variable
-;           Y register (sprite height - 1)
-; Outputs:
-; Notes:    P0 position=56; P1 position=59
-;
-;   ldy #HEIGHT-1
-;   DRAW_COLOR_PATTERN Graphic, Palette
-; -----------------------------------------------------------------------------
-    MAC DRAW_COLOR_PATTERN
-.GFX_ADDR   SET {1}
-.PALETTE    SET {2}
-
-.Loop
-        sta WSYNC
-        lda  .GFX_ADDR,y
-        sta  GRP0
-        sta  GRP1
-        lda  .PALETTE,y
-        sta  COLUP0
-        sta  COLUP1
-        dey
-        bpl  .Loop
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Desc:     Draws 2 close sprites in a row.
-; Inputs:   pointers variable (array of 2 words)
-;           Y register (sprite height - 1)
-; Outputs:
-;
-;   ldy #HEIGHT-1
-;   DRAW_2_SPRITES SpritePtrs
-;
-; -----------------------------------------------------------------------------
-    MAC DRAW_2_SPRITES
-.PTRS   SET {1}
-
-.Loop
-        sta WSYNC               ; 3 (0)
-        lda (.PTRS),y           ; 5 (5) 
-        sta GRP0                ; 3 (8)     Sprite 1 [30-32]
-        lda (.PTRS+2),y         ; 5 (13]
-        sta GRP1                ; 3 (16)    Sprite 2 [35-37]
-        dey
-        bpl .Loop
-    ENDM
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draws 6 medium spaced sprites in a row.

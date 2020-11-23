@@ -3,7 +3,7 @@
 ; Param:    prefix string
 ; Output:
 ; -----------------------------------------------------------------------------
-    MAC HORIZ_POSITION_SUBS
+    MAC INCLUDE_POSITIONING_SUBS
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Positions an object horizontally using the Battlezone algorithm.

@@ -9,8 +9,8 @@
 ; -----------------------------------------------------------------------------
 ; Shared Variables
 ; -----------------------------------------------------------------------------
-; animation add (shared with Bank2)
 Bank3_SeqPtr SET TempVars
+; animation add (must be same as vars in Bank2)
 Bank3_AddID SET TempVars+2
 Bank3_AddPos SET TempVars+3
 
@@ -31,7 +31,7 @@ HoleIdx SET TempVars+5
 GapIdx SET TempVars+5
 GapLastElem SET TempVars+6
 
-; wide sprite rendering
+; wide sprite rendering for Bank3_DrawColorText & Bank3_DrawColorTextJump
 ;DrawHeight SET TempVars+6
 ;PalettePtr SET TempVars+7
 
@@ -60,7 +60,7 @@ Bank3_PlayKernel SUBROUTINE
     ; move bit 7 value to bit 3 position (10000000 -> 00001000)
     asl
     lda #%00000111
-    adc #0
+    adc #0                  ; this method saves 2 cycles
     and #%00001000
     ; build the index
     ora Bank3_NumCardsFlag,y
@@ -372,7 +372,6 @@ Bank3_PlayKernel SUBROUTINE
     ; draw the status bar
     ldy #STATUS_TEXT_HEIGHT-1
     jsr Bank3_DrawMessageBar
-    ;jsr Bank3_DrawColorText
 
     ; Cleanup -----------------------------------------------------------------
     lda #0
@@ -380,6 +379,7 @@ Bank3_PlayKernel SUBROUTINE
     sta COLUBK
     sta PF0
     sta PF1
+    sta PF2
     sta VDELP0
     sta VDELP1
     sta GRP0
@@ -1488,24 +1488,6 @@ Bank3_ClearPlayfield SUBROUTINE
     rts                             ; 6 (23)
 
 ; -----------------------------------------------------------------------------
-; Desc:     Draws a multi-color message bar.
-; Inputs:        
-; Ouputs:
-; -----------------------------------------------------------------------------
-#if 0
-Bank3_DrawMessageBar SUBROUTINE
-    DRAW_48_COLOR_SPRITE SpritePtrs, Bank3_MessagePalette
-
-    lda #0
-    sta GRP0
-    sta GRP1
-    ; 2nd write to flush VDEL
-    sta GRP0
-    sta GRP1
-    rts
-#endif
-
-; -----------------------------------------------------------------------------
 ; Desc:     Draw a 48 pixel wide color sprite positioned at pixel 56.
 ; Inputs:   Y register (sprite height - 1)
 ; Outputs:
@@ -1795,27 +1777,27 @@ Bank3_Draw6Sprites SUBROUTINE
     rts                     ; 6 (69)
 
 ; -----------------------------------------------------------------------------
-; Desc:     Return Log2(A)
+; Desc:     Compute the Log2 of A. (Returns highest bit set.)
 ; Inputs:   A register (value)
-; Ouputs:   X register (bit position of the leftmost bit)
-;           1-8 if found. 0 if not found.
+; Ouputs:   X register (result)
+;           1-8 when A>0, 0 otherwise.
 ; Notes:
 ;   Max cycles: 67 = 7 + (7 x 7 loops) - 1 + 12 (jsr & rts)
 ; -----------------------------------------------------------------------------
 Bank3_Log2 SUBROUTINE
-    tay
     ldx #0          ; 3 (3)
+    tay             ; 2 (2)
     cmp #0          ; 2 (5)
     beq .Return     ; 2 (7)
 .Loop
     inx             ; 2 (2)
     lsr             ; 2 (4)
-    bne .Loop       ; 3/2 (7)
+    bne .Loop       ; 3 (7)
+    tya             ; 2 (2)
 .Return
-    tya
-    rts
+    rts             ; 6 (6)
 
-    BANK_PROCS 3
+    INCLUDE_MENU_SUBS 3
 
 ; map rank index to a sprite graphic
 Bank3_CardRankSprite
@@ -2236,16 +2218,10 @@ Bank3_ProcTableLo
 Bank3_ProcTableHi
     dc.b >Bank2_Overscan
 
-    ORG BANK3_ORG + $ff6-BS_SIZEOF-$f
-    RORG BANK3_RORG + $ff6-BS_SIZEOF-$f
-
-    ; horizontal positioning data
-    HORIZ_POS_TABLE 3
-
     ORG BANK3_ORG + $ff6-BS_SIZEOF
     RORG BANK3_RORG + $ff6-BS_SIZEOF
 
-    BANKSWITCH_ROUTINES 3, BANK3_HOTSPOT
+    INCLUDE_BANKSWITCH_SUBS 3, BANK3_HOTSPOT
 
 	; bank switch hotspots
     ORG BANK3_ORG + $ff6

@@ -3,7 +3,7 @@
 ; Inputs:   bank number
 ; Outputs:
 ; -----------------------------------------------------------------------------
-    MAC BANK_PROCS
+    MAC INCLUDE_MENU_SUBS
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Gets the currently selected betting menu item.

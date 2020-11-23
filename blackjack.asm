@@ -57,7 +57,7 @@ PIP_COLORS                  = 0
 ;   0 = off
 ;   1 = non-random numbers
 ;   2 = random cards
-TEST_RAND_ON                = 2
+TEST_RAND_ON                = 0
 TEST_TIME_ON                = 0
 TEST_TIMING_ON              = 0
 TEST_STACK_DEBUG            = 0
@@ -74,20 +74,19 @@ BALLAST_ON                  = 0
     ENDIF
 
     LIST OFF
+    include "include/bankswitch.h"
     include "include/debug.h"
     include "include/defines.h"
     include "include/draw.h"
     include "include/macro.h"
+    include "include/menu.h"
     include "include/position.h"
     include "include/screen.h"
     include "include/time.h"
     include "include/util.h"
     include "include/vcs.h"
-    include "sys/colors.h"
+    include "sys/video.h"
     include "lib/macros.asm"
-    include "lib/bankswitch.asm"
-    include "lib/bankprocs.asm"
-    include "lib/horizpos.asm"
     LIST ON
 
 ; -----------------------------------------------------------------------------
@@ -129,7 +128,8 @@ TIME_CHIP_MENU_SETUP        = 2*76/8    ; TIM8T (19)
 TIME_CHIP_DENOM             = 6*76/8    ; TIM8T (57)
 TIME_STATUS_BAR             = 4*76/8    ; TIM8T (38)
 
-JOY_TIMER_DELAY             = 30        ; num frames (1 second)
+JOY_TIMER_DELAY             = 30        ; num frames
+KEY_TIMER_DELAY             = 10        ; num frames
 
 NUSIZE_3_MEDIUM             = %00000110
 NUSIZE_3_CLOSE              = %00000011
@@ -286,6 +286,7 @@ FrameCtr                    ds.b 1
 RandNum                     ds.b 1
 RandAlt                     ds.b 1
 JoyTimer                    ds.b 1
+KeyTimer                    ds.b 1
 
 ; 1 = release event; 0 = no event
 ; Bit 7:    right
@@ -297,6 +298,7 @@ JoyTimer                    ds.b 1
 ; Bit 1:    select
 ; Bit 0:    (unused)
 JoyRelease                  ds.b 1
+; Bits 0-3: scan code (0=none, 1-12=key)
 KeyPress                    ds.b 1
 
 ; Previous values of of SWCHA and INPT4
@@ -496,21 +498,6 @@ ScanDebug                   SET PlayerCards+#5
 ; -----------------------------------------------------------------------------
 ; Macros
 ; -----------------------------------------------------------------------------
-    MAC DIVIDER_LINE
-.COLOR  SET {1}
-        ; draw divider line
-        lda #.COLOR
-        sta COLUBK
-        sta WSYNC
-    ENDM
-
-    MAC CLEAR_GRAPHICS
-        sta WSYNC
-        lda #0
-        sta GRP0
-        sta GRP1
-    ENDM
-
 ; -----------------------------------------------------------------------------
 ; Returns the current dashboard menu selection.
 ; Inputs:

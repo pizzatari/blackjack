@@ -3,7 +3,7 @@
 ;
 ;   JUMP_BANK
 ;   CALL_BANK
-;   BANKSWITCH_ROUTINES
+;   INCLUDE_BANKSWITCH_SUBS
 ; -----------------------------------------------------------------------------
 
 BS_SIZEOF = $2d
@@ -47,7 +47,7 @@ BS_VERSION = 2  ; 0=original; 1=optimized1; 2=optimized2
 
     ENDM
 
-    MAC BANKSWITCH_ROUTINES
+    MAC INCLUDE_BANKSWITCH_SUBS
     ; -------------------------------------------------------------------------
     ; Desc:     Call a procedure in another bank.
     ; Inputs:   X register (destination proc idx)
@@ -73,7 +73,6 @@ Bank{1}_CallBank SUBROUTINE
     pha                         ; 3 (31)
     jmp (TempPtr)               ; 5 (36)
 
-    ; rts                       ; 6 (42)
 .Return
     pla                         ; 4 (46)    fetch source bank # 
     tay                         ; 2 (48)
@@ -150,7 +149,7 @@ Bank{1}_JumpBank SUBROUTINE
         pla                             ; 4             pop source argument
     ENDM
 
-    MAC BANKSWITCH_ROUTINES
+    MAC INCLUDE_BANKSWITCH_SUBS
     ; -------------------------------------------------------------------------
     ; Desc:     Interrupt handler for jumping to a label or calling an
     ;           arbitrary subroutine in another bank. 

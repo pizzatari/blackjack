@@ -76,3 +76,21 @@ Bank0_Digit9
 	dc.b %00001010
 	dc.b %00001110
     dc.b 0
+Bank0_Digit10
+	dc.b %00101010
+	dc.b %00011100
+	dc.b %00111110
+	dc.b %00011100
+	dc.b %00101010
+	dc.b %00000000
+    dc.b 0
+Bank0_Digit11
+	dc.b %00010100
+	dc.b %00111110
+	dc.b %00010100
+	dc.b %00111110
+	dc.b %00010100
+	dc.b %00000000
+    dc.b 0
+Bank0_ScanCodes
+   dc.b 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 11

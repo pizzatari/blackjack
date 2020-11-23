@@ -310,7 +310,7 @@ UpdateHighlights SUBROUTINE         ; 6 (6)
 .Skip1
     stx PalIdx1                     ; 3 (29)
 
-        ; 2 (31)nd hightlight is delayed by 16 frames from 1st
+    ; 2 (31)nd hightlight is delayed by 16 frames from 1st
     ldx #0                          ; 2 (33)
     lda FrameCtr                    ; 3 (36)
     cmp #TITLE_COPY_HEIGHT          ; 2 (38)
@@ -326,12 +326,13 @@ UpdateHighlights SUBROUTINE         ; 6 (6)
 
     ALIGN 256, FILLER_CHAR
     PAGE_BOUNDARY_SET
+
     ; Bank tailored subroutines from lib\macros.asm
     SPRITE_POSITIONING 0
     PAGE_BOUNDARY_CHECK "Bank0 position"
 
     ; Bank tailored subroutines from lib\bankprocs.asm
-    BANK_PROCS 0
+    INCLUDE_MENU_SUBS 0
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Reads the console switches and assigns state variables.
@@ -441,13 +442,97 @@ Bank0_ReadJoystick SUBROUTINE
     sty JoyINPT4
     rts
 
-Bank0_DetectKeypad SUBROUTINE
-    ; write random pattern
-    ; read it back
+; -----------------------------------------------------------------------------
+; Desc:     Sends a test signal required for reading the keypad.
+; Inputs:   A (row selector)
+; Ouputs:   JoyRelease (joystick bitmask)
+; Notes:    Keypad
+;
+;       INPT0 to INPT5: reading from bit 7 for the column
+;
+;          0 1 4   INPT    2 3 5
+;   SWCHA -------         ------- SWCHA: writing to bits 0-7 to test rows
+;       4 |1 2 3|         |1 2 3| 0
+;       5 |4 5 6|         |4 5 6| 1 
+;       6 |7 8 9|         |7 8 9| 2
+;       7 |* 0 #|         |* 0 #| 3
+;         -------         -------
+;          left            right
+;
+;   Reading the keypad requires multiple rounds of testing to detect which
+;   button rows are pressed. A 0 is written to SWCHA bit corresponding to the
+;   button row being tested. A 1 is written to the remaining bits. The result
+;   of the test is returned in bit 7 of an INPT address (INPT0 to INPT5).
+;   The INPT addresses that receive a 0 indicate which columns are pressed,
+;   so the combination of SWCHA and INPT specify which buttons are pressed.
+;
+;                      _____ 
+;                     |left |
+;   SWCHA and SWACNT: 7 6 5 4 3 2 1 0
+;                             |_____|
+;                              right
+;
+;   The left and right keypads can be tested together or independently. Prior
+;   to testing, the SWACNT data direction must be set to output for the bits
+;   in SWCHA that will be tested: left 11110000, right 00001111, both 11111111.
+; -----------------------------------------------------------------------------
+#if 1
+Bank0_TestKeypad SUBROUTINE
+    lda FrameCtr
+    and #%00000011
+    tay
+    lda Bank0_KeyBits,y
+    sta SWCHA
     rts
 
 Bank0_ReadKeypad SUBROUTINE
-#if 0
+    lda KeyTimer
+    beq .Return
+
+    lda #KEY_TIMER_DELAY
+    sta KeyTimer
+
+    lda FrameCtr
+    and #%00000011
+    tay
+    ldx Bank0_KeyIdx,y          ; starting value
+
+    ldy INPT5
+    bpl .ThirdPressed
+    ldy INPT3
+    bpl .SecondPressed
+    ldy INPT2
+    bpl .FirstPressed
+    rts
+    ;ldx #-3
+.ThirdPressed
+    inx
+.SecondPressed
+    inx
+.FirstPressed
+    inx
+    stx KeyPress
+.Return
+    rts
+
+#else
+Bank0_TestKeypad SUBROUTINE
+    lda #%11000000
+    bit KeyPress    
+    bmi .Left1
+
+.Left1
+    asl
+    bit KeyPress    
+    bmi .Left2
+
+    lda #%00001111
+    sta SWCHA
+    
+.Left2
+    rts
+
+Bank0_ReadKeypad SUBROUTINE
     ldx #0
     sec
     lda #%11110111
@@ -456,8 +541,7 @@ Bank0_ReadKeypad SUBROUTINE
     sta SWCHA
 
     ; wait 500ms
-;    ldy #120
-    ldy #3
+    ldy #120
 .BusyWait
     dey
     bne .BusyWait
@@ -473,8 +557,8 @@ Bank0_ReadKeypad SUBROUTINE
     inx
     inx
 
-    ;ror
-    ;bcs .NextRow
+    ror
+    bcs .NextRow
 
     ldx #-3         ; no key pressed
     
@@ -486,34 +570,13 @@ Bank0_ReadKeypad SUBROUTINE
     inx
 
     stx KeyPress
-#endif
     rts
+#endif
 
-#if 0
-.readkeypad
-    lda #$FF
-    ldx #12
-    clc
-.new_row
-    ror
-    sta SWCHA
-    ldy #120
-.wait
-    dey
-    bne .wait
-    bit INPT4
-    bpl .keypressed
-    dex
-    bit INPT1
-    bpl .keypressed
-    dex
-    bit INPT0
-    bpl .keypressed
-    dex
-    bne .new_row
-.keypressed
-    rts
-#endif
+Bank0_KeyBits
+    dc.b %00001110, %00001101, %00001011, %00000111
+Bank0_KeyIdx
+    dc.b 0, 3, 6, 9
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Implements the game screen kernel.
@@ -651,12 +714,20 @@ Bank0_BettingKernel SUBROUTINE
     sta WSYNC
     ldy #TIMES_HEIGHT-1
     DRAW_2_GRAPHIC Bank0_TimesSprite, Bank0_TimesSprite
-    CLEAR_GRAPHICS
 
-    sta WSYNC
+    lda #0
     ldy #DENOMS_HEIGHT-1
+    sta WSYNC
+    sta GRP0
+    sta GRP1
+    sta WSYNC
+
     DRAW_6_GRAPHIC Bank0_DenomSprite
-    CLEAR_GRAPHICS
+
+    lda #0
+    sta WSYNC
+    sta GRP0
+    sta GRP1
 
     ; status bar section -----------------------------------------------------
     TIMED_JSR Bank0_SetupStatusBar, TIME_STATUS_BAR, TIM8T
@@ -772,7 +843,7 @@ Bank0_GameIO SUBROUTINE
     bne .DecReturn
     jsr Bank0_ReadSwitches
     jsr Bank0_ReadJoystick
-    jsr Bank0_ReadKeypad
+    jsr Bank0_TestKeypad
     rts
 .DecReturn
     dex
@@ -1377,7 +1448,8 @@ Bank0_ProcTableHi
 
     include "sys/bank0_palette.asm"
 
-    ALIGN 256
+    ALIGN 256, FILLER_CHAR
+
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw multi-color graphics for the title scren.
 ; Inputs:   
@@ -1437,16 +1509,10 @@ Bank0_BlankSprite
     PAGE_BOUNDARY_CHECK "Bank0 prompts"
     PAGE_BYTES_REMAINING
 
-    ; horizontal positioning data
-    ORG BANK0_ORG + $ff6-BS_SIZEOF-$f
-    RORG BANK0_RORG + $ff6-BS_SIZEOF-$f
-
-    HORIZ_POS_TABLE 0
-
     ORG BANK0_ORG + $ff6-BS_SIZEOF
     RORG BANK0_RORG + $ff6-BS_SIZEOF
 
-    BANKSWITCH_ROUTINES 0, BANK0_HOTSPOT
+    INCLUDE_BANKSWITCH_SUBS 0, BANK0_HOTSPOT
 
     ; bank switch hotspots
     ORG BANK0_ORG + $ff6

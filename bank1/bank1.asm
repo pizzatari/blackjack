@@ -32,10 +32,12 @@ FgHeight        SET LocalVars+1
 TempHeight      SET LocalVars+2
 ShipPosX        SET LocalVars+3
 ShipPosY        SET LocalVars+4
-CasinoColor     SET LocalVars+5
-CasinoPtr0      SET LocalVars+6
-CasinoPtr1      SET LocalVars+8
-FlamePtr        SET LocalVars+10
+DoorPosX        SET LocalVars+5
+DoorEnable      SET LocalVars+6
+CasinoColor     SET LocalVars+7
+CasinoPtr0      SET LocalVars+8
+CasinoPtr1      SET LocalVars+10
+FlamePtr        SET LocalVars+12
 
 Bank1_Reset
     ; switch to bank 0 if we start here
@@ -62,6 +64,7 @@ Bank1_Init
     stx NUSIZ0
     stx NUSIZ1
     stx CasinoColor
+    stx DoorEnable
 
     ; position player 0
     ; X = 0
@@ -71,6 +74,11 @@ Bank1_Init
 
     ; position player 1
     ldx #P1_OBJ
+    lda #151
+    jsr Bank1_HorizPosition
+
+    ; position door
+    ldx #M1_OBJ
     lda #151
     jsr Bank1_HorizPosition
 
@@ -138,6 +146,8 @@ Bank1_VerticalBlank SUBROUTINE
     sta CasinoPtr1
     lda #>Bank1_CasinoGfx1
     sta CasinoPtr1+1
+    lda #2
+    sta DoorEnable
 
 .Return
     sta WSYNC
@@ -228,6 +238,57 @@ Bank1_DrawBgHills SUBROUTINE
     bne .Hills
     rts
 
+#if 1
+; drawing foreground on even lines and ship on odd lines
+Bank1_DrawUpperFg SUBROUTINE
+    ldy CasinoColor                 ; 3 (32)
+    lda Bank1_CasinoPalette,y       ; 4 (36)
+    sta COLUP0                      ; 3 (39)
+    sta COLUP1                      ; 3 (42)
+
+    ldx #0                          ; 2 (2)
+.FgCasino
+    ; even scan line
+    txa                             ; 2 (48)
+    and #%00011110                  ; 2 (50)
+    lsr                             ; 2 (2)
+    tay                             ; 2 (52)
+    lda Bank1_ForegroundPalette,y   ; 4 (56)
+    sta WSYNC                       ; 3 (59)
+
+    ; --------------------------------------
+    sta COLUPF                      ; 3 (3)
+    lda Bank1_Foreground,y          ; 4 (7)
+    sta PF0                         ; 3 (10)
+    sta PF1                         ; 3 (13)
+    sta PF2                         ; 3 (16)
+
+    ; odd scan line
+    inx                             ; 2 (18)
+    ldy #COLOR_BLACK                ; 2 (20)
+    txa                             ; 2 (22)
+    sec                             ; 2 (24)
+    sta WSYNC                       ; 3 (27)
+
+    ; --------------------------------------
+    sty COLUPF                      ; 3 (3)
+    txa                             ; 2 (2)
+    lsr                             ; 2 (11)
+    tay                             ; 2 (13)
+    lda (CasinoPtr0),y              ; 5 (18)
+    sta GRP0                        ; 3 (21)
+    lda (CasinoPtr1),y              ; 5 (26)
+    sta GRP1                        ; 3 (29)
+    ;lda DoorEnable                  ; 3 (3)
+    ;sta ENAM1                       ; 3 (3)
+
+.skipCasino
+
+    inx                             ; 2 (44)
+    cpx #UPPER_FG_HEIGHT            ; 2 (46)
+    bcc .FgCasino                   ; 3 (49)
+    rts
+#else
 ; drawing foreground on even lines and ship on odd lines
 Bank1_DrawUpperFg SUBROUTINE
     ldx #0                          ; 2 (2)
@@ -265,6 +326,8 @@ Bank1_DrawUpperFg SUBROUTINE
     sta GRP0                        ; 3 (21)
     lda (CasinoPtr1),y              ; 5 (26)
     sta GRP1                        ; 3 (29)
+    ;lda DoorEnable                  ; 3 (3)
+    ;sta ENAM1                       ; 3 (3)
 
 .skipCasino
     ldy CasinoColor                 ; 3 (32)
@@ -276,6 +339,7 @@ Bank1_DrawUpperFg SUBROUTINE
     cpx #UPPER_FG_HEIGHT            ; 2 (46)
     bcc .FgCasino                   ; 3 (49)
     rts
+#endif
 
 Bank1_DrawLowerFg SUBROUTINE
     lda #UPPER_FG_HEIGHT            ; 2 (2)
@@ -381,6 +445,7 @@ Bank1_MoveShip SUBROUTINE
     lda #1<<4               ; move left 1 pixel
     sta HMP0
     sta HMP1
+    sta HMM1
     sta WSYNC
     sta HMOVE
 
@@ -523,30 +588,37 @@ Bank1_FlamesLo
 Bank1_FlamesHi
     dc.b >Bank1_FlameGfx0, >Bank1_FlameGfx1, >Bank1_FlameGfx2, >Bank1_FlameGfx3
 
+#if 0
 Bank1_CasinoGfx0
     dc.b %00000111
     dc.b %11111111
-    dc.b %10000000
-    dc.b %10000000
-    dc.b %10111111
-    dc.b %10100010
-    dc.b %10100010
-    dc.b %10100010
+    dc.b %11111111
+    dc.b %11111111
+    dc.b %11111111
+    dc.b %11100011
+    dc.b %11100011
+    dc.b %11100011
     dc.b %11111111
     dc.b 0
 CASINO_HEIGHT = . - Bank1_CasinoGfx0
 Bank1_CasinoGfx1
     dc.b %11100000
     dc.b %11111111
-    dc.b %00000001
-    dc.b %00000001
-    dc.b %11111101
+    dc.b %11111111
+    dc.b %11111111
+    dc.b %11111111
     dc.b %01000101
     dc.b %01000101
     dc.b %01000101
     dc.b %11111111
 Bank1_BlankSprite
     ds.b 20, 0
+#endif
+
+    include "bank1/gen/casino.sp"
+
+CASINO_HEIGHT = . - Bank1_CasinoGfx1
+
 
 ; these have to be multiples of 2
 Bank1_MotionJitterY
@@ -573,7 +645,7 @@ Bank1_MotionJitterY
 
     ALIGN 256, FILLER_CHAR
 
-    HORIZ_POSITION_SUBS Bank1_
+    INCLUDE_POSITIONING_SUBS Bank1_
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures
@@ -589,7 +661,7 @@ Bank1_ProcTableHi
     ORG BANK1_ORG + $ff6-BS_SIZEOF
     RORG BANK1_RORG + $ff6-BS_SIZEOF
 
-    BANKSWITCH_ROUTINES 1, BANK1_HOTSPOT
+    INCLUDE_BANKSWITCH_SUBS 1, BANK1_HOTSPOT
 
 	; bank switch hotspots
     ORG BANK1_ORG + $ff6

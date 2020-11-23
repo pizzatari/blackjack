@@ -46,9 +46,9 @@ $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 
 .PHONY: deploy
 deploy: all
-	cp blackjack.bin blackjack.lst blackjack.sym /var/www/html/roms/
-	chmod ugo+r /var/www/html/roms/blackjack.bin
-	@echo Copying to: http://98.225.37.203/roms/blackjack.bin
+	cp *.bin *.lst *.sym /var/www/html/roms/
+	chmod ugo+r /var/www/html/roms/*.bin
+	@echo Copying to: http://98.225.37.203/roms/
 
 .PHONY: clean
 clean:

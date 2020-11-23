@@ -9,7 +9,7 @@
 ; -----------------------------------------------------------------------------
 ; Shared Variables
 ; -----------------------------------------------------------------------------
-; animation add (shared with Bank3)
+; animation add (must be same as vars in Bank2)
 Bank2_AddID   SET TempVars+2
 Bank2_AddPos  SET TempVars+3
 
@@ -18,14 +18,11 @@ Bank2_AddPos  SET TempVars+3
 ; -----------------------------------------------------------------------------
 TriggerTimer    = RandAlt
 StackPtr        = TempVars
+Score           = TempVars+1
+NumAces         = TempVars+2
 NewCard         = TempVars+2
-Score           = TempVars+3
-NumAces         = TempVars+4
-
 FindStart       = TempVars+2
-BitPos          = TempVars+3
-
-PopupCnt        = TempVars+5
+BetSelect       = TempVars+2
 
 ; disable trigger after the end of a game: RandAlt is safe to use in the
 ; intermission state (GS_INTERMISSION)
@@ -68,7 +65,7 @@ Bank2_Init
 
 Bank2_FrameStart SUBROUTINE
     ; -------------------------------------------------------------------------
-    ; vertical sync
+    ; VerticalSync
     ; -------------------------------------------------------------------------
     lda #%00000000
     sta VBLANK
@@ -76,7 +73,7 @@ Bank2_FrameStart SUBROUTINE
     ; -------------------------------------------------------------------------
 
     ; -------------------------------------------------------------------------
-    ; vertical blank
+    ; VerticalBlank
     ; -------------------------------------------------------------------------
     ldy GameState
     lda #30*76/64   ;#TIME_VBLANK
@@ -167,20 +164,50 @@ Bank2_FrameStart SUBROUTINE
     ; overscan
     ; -------------------------------------------------------------------------
 Bank2_Overscan
+    lda #%00000010
+    sta WSYNC
+    sta VBLANK
+
     lda #TIME_OVERSCAN
     sta TIM64T
 
-    CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
+Debug1
     CALL_BANK PROC_BANK0_GAMEIO, 0, 2
+    CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
 
-    ; if # of decks changed, then reshuffle
-    lda #SWITCH_SELECT_MASK
-    bit JoyRelease
-    beq .NoDeckChange
+    ; test keypad
 
-    lda #TSK_SHUFFLE
-    jsr Bank2_QueueAdd
+    ; position selector
+    ldy #SPRITE_GRAPHICS_IDX
+    jsr Bank2_PositionSprites
 
+    lda #0
+    sta COLUBK
+    sta PF0
+    sta PF1
+    sta PF2
+
+    ldy #MSG_BAR_IDX
+    lda Bank2_TextBarPalette+1,y
+    sta COLUP0
+    sta COLUP1
+
+Debug2
+    ; read keypad
+    CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
+Debug3
+
+    inc FrameCtr
+
+    TIMER_WAIT
+    ; -------------------------------------------------------------------------
+
+    jmp Bank2_FrameStart
+
+; -----------------------------------------------------------------------------
+; SUBROUTINES
+; -----------------------------------------------------------------------------
+Bank2_DeckChange SUBROUTINE
     ; increment the number of decks.
     lda GameOpts
     and #NUM_DECKS_MASK
@@ -199,32 +226,7 @@ Bank2_Overscan
     tya                         ; A = num decks
     ora GameOpts                ; merge num decks with GameOpts
     sta GameOpts
-
-.NoDeckChange
-    ; position selector
-    ldy #SPRITE_GRAPHICS_IDX
-    jsr Bank2_PositionSprites
-
-    inc FrameCtr
-
-    lda #0
-    sta COLUBK
-    sta PF0
-    sta PF1
-    sta PF2
-    ldy #MSG_BAR_IDX
-    lda Bank2_TextBarPalette+1,y
-    sta COLUP0
-    sta COLUP1
-
-    TIMER_WAIT
-    ; -------------------------------------------------------------------------
-
-    jmp Bank2_FrameStart
-
-; -----------------------------------------------------------------------------
-; SUBROUTINES
-; -----------------------------------------------------------------------------
+    rts
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Increases bet by the amount selected by Bank2_DenomValue[X]
@@ -1683,60 +1685,36 @@ WaitPlayerBet SUBROUTINE
     ora GameOpts
     sta GameOpts
 
-#if 0
-    ;lda GameOpts
-    ;and #NUM_DECKS_MASK
-    ;tay                         ; Y = num decks (save a copy)
-
-    ;lda #0
-    ;sta GameOpts
-
-    ;tax                         ; X = SWCHB (save a copy)
-    ; check game select (triggering on button release: 0 -> 1)
-    txa                         ; A = SWCHB
-    eor JoySWCHB                ; find the changed bits
-    beq .Continue               ; if no bits changed, continue
-
-    ; there are changed bits
-    and #SWITCH_SELECT_MASK     ; test if the changed bit is select button
-    beq .Continue               ; if not the select button, continue
-    bit JoySWCHB                ; test if this is a button press
-    bne .Continue               ; if this is the button press (1), continue
-
+    ; check if the number of decks changed and then reshuffle.
     lda #SWITCH_SELECT_MASK
     bit JoyRelease
-    beq .Continue
-
-    ; this is a button release (0), so increment the number of decks.
-.Skip2
-    iny                         ; Y = num decks + 1
-    cpy #2
-    beq .Skip2                  ; 3 decks is not allowed
-    cpy #NUM_DECKS
-    bcc .SetDecks               ; handle overflow of num decks
-    ldy #0
-.SetDecks
-    tya                         ; A = num decks
-    ora GameOpts                ; merge num decks with GameOpts
-    sta GameOpts
-
-    ;stx JoySWCHB                ; save most recent copy of SWCHB
-
-.Continue
-#endif
-
-    jsr Bank2_GetBetMenu
+    beq .CheckKeypad
+    jsr Bank2_DeckChange
+    lda #TSK_SHUFFLE
+    jsr Bank2_QueueAdd
+    jmp .CheckKeypad
+    lda #SOUND_ID_ERROR
     sta Arg1
+    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+
+.CheckKeypad
+    ; handle keypad number entry
+    lda KeyPress
+    beq .CheckJoystick
+
+.CheckJoystick
+    ; handle joystick menu navigation: get current selection
+    jsr Bank2_GetBetMenu
+    sta BetSelect
 
     ; check for joystick input
-    
 .CheckLeft
     lda #JOY0_LEFT_MASK
     bit JoyRelease
     beq .CheckRight
-    lda Arg1
+    lda BetSelect
     beq .UpdateState
-    dec Arg1
+    dec BetSelect
     jmp .UpdateState
 
 .CheckRight
@@ -1744,9 +1722,9 @@ WaitPlayerBet SUBROUTINE
     bit JoyRelease
     beq .CheckUp
     lda #NUM_SPRITES-1
-    cmp Arg1
+    cmp BetSelect
     beq .UpdateState
-    inc Arg1
+    inc BetSelect
     jmp .UpdateState
 
 .CheckUp
@@ -1770,7 +1748,7 @@ WaitPlayerBet SUBROUTINE
     bit JoyRelease
     beq .Return
 
-    ; make sure CurrBet is > 0
+    ; bet is selected: make sure CurrBet is > 0
     lda CurrBet
     adc CurrBet+1
     bne .FirstDeal
@@ -1788,7 +1766,7 @@ WaitPlayerBet SUBROUTINE
 
 .UpdateState
     ; update currently selected menu
-    lda Arg1
+    lda BetSelect
     jsr Bank2_SetBetMenu
 
     lda #SOUND_ID_STAND
@@ -1962,17 +1940,17 @@ ActionPlayerSetFlags SUBROUTINE
     ; then disallow surrender 
     lda #FLAGS_BLACKJACK
     bit PlayerFlags+DEALER_IDX
-    beq .Allowed
+    beq .SurrAllowed
 
     lda #FLAGS_LATE_SURRENDER
     bit GameOpts
-    beq .Allowed
+    beq .SurrAllowed
 
     ; disable surrender: dealer has blackjack and game is late surrender
     lda GameFlags
     and #~FLAGS_SURRENDER_ALLOWED
     sta GameFlags
-.Allowed
+.SurrAllowed
 
     ; check if score is 21
     ldy PlayerScore,x
@@ -2006,8 +1984,15 @@ ActionPlayerSetFlags SUBROUTINE
 
     ; both have blackjack, so player pushes
     lda PlayerFlags,x
+    and #~FLAGS_BLACKJACK
     ora #FLAGS_PUSH
     sta PlayerFlags,x
+
+    lda PlayerFlags+DEALER_IDX
+    and #~FLAGS_BLACKJACK
+    ora #FLAGS_PUSH
+    sta PlayerFlags+DEALER_IDX
+
     jmp .HandOver
 
 .Blackjack
@@ -2036,14 +2021,14 @@ ActionPlayerSetFlags SUBROUTINE
     and #CARD_RANK_MASK
     tay
     lda Bank2_CardPointValue,y
-    sta Arg1                    ; Arg1 = 1st card
+    sta Arg1                        ; Arg1 = 1st card
 
     ; lookup 2nd card
     ldy Bank2_Multiply6,x
     lda PlayerCards+1,y
     and #CARD_RANK_MASK
     tay
-    lda Bank2_CardPointValue,y        ; A = 2nd card
+    lda Bank2_CardPointValue,y      ; A = 2nd card
 
     ; compare 1st and 2nd cards
     cmp Arg1
@@ -3063,7 +3048,7 @@ Bank2_ResetGame
     include "bank2/lib/task-8bit.asm"
 
     ; define procedures common to multiple banks
-    BANK_PROCS 2
+    INCLUDE_MENU_SUBS 2
 
 ; -----------------------------------------------------------------------------
 ; Data 
@@ -3180,6 +3165,7 @@ Bank2_GameStateHandlers
     dc.w WaitPlayerBet          ; GS_PLAYER_BET
     dc.w ActionPlayerBetDown    ; GS_PLAYER_BET_DOWN
     dc.w ActionPlayerBetUp      ; GS_PLAYER_BET_UP
+    ;dc.w ActionPlayerKeypad    ; GS_PLAYER_KEYPAD
     ; opening deal
     dc.w ActionOpenDeal1        ; GS_OPEN_DEAL1: dealer 1st card
     dc.w ActionOpenDeal2        ; GS_OPEN_DEAL2: player 1st card
@@ -3251,6 +3237,7 @@ PROC_BANK3_PLAYKERNEL       = 4
 PROC_SOUNDQUEUEPLAY         = 5
 PROC_SOUNDQUEUEPLAY2        = 6
 PROC_SOUNDQUEUETICK         = 7
+PROC_BANK0_READKEYPAD       = 8
 
 Bank2_ProcTableLo
     dc.b <AnimationAdd
@@ -3261,6 +3248,7 @@ Bank2_ProcTableLo
     dc.b <SoundQueuePlay
     dc.b <SoundQueuePlay2
     dc.b <SoundQueueTick
+    dc.b <Bank0_ReadKeypad
 
 Bank2_ProcTableHi
     dc.b >AnimationAdd
@@ -3271,15 +3259,11 @@ Bank2_ProcTableHi
     dc.b >SoundQueuePlay
     dc.b >SoundQueuePlay2
     dc.b >SoundQueueTick
-
-    ; horizontal positioning data
-    ORG BANK2_ORG + $ff6-BS_SIZEOF-$f
-    RORG BANK2_RORG + $ff6-BS_SIZEOF-$f
-    HORIZ_POS_TABLE 2
+    dc.b >Bank0_ReadKeypad
 
     ORG BANK2_ORG + $ff6-BS_SIZEOF
     RORG BANK2_RORG + $ff6-BS_SIZEOF
-    BANKSWITCH_ROUTINES 2, BANK2_HOTSPOT
+    INCLUDE_BANKSWITCH_SUBS 2, BANK2_HOTSPOT
 
 	; bank switch hotspots
     ORG BANK2_ORG + $ff6

@@ -494,40 +494,6 @@ MemBlockEnd
 ; For scaline debugging
 ScanDebug                   SET PlayerCards+#5
 
-
-; -----------------------------------------------------------------------------
-; Macros
-; -----------------------------------------------------------------------------
-; -----------------------------------------------------------------------------
-; Returns the current dashboard menu selection.
-; Inputs:
-; Outputs:      A register (menu selection)
-; -----------------------------------------------------------------------------
-    MAC GET_DASH_MENU
-        lda CurrState
-        and #CURR_DASH_MENU_MASK
-        lsr
-        lsr
-        lsr
-    ENDM
-
-; -----------------------------------------------------------------------------
-; Sets the current dashboard menu selection.
-; Inputs:       Y register (menu selection)
-; Outputs:
-; -----------------------------------------------------------------------------
-    MAC SET_DASH_MENU
-        lda CurrState
-        and #~CURR_DASH_MENU_MASK
-        sta CurrState
-        tya
-        asl
-        asl
-        asl
-        ora CurrState
-        sta CurrState
-    ENDM
-
     SEG rom
     include "bank0/bank0.asm"
     include "bank1/bank1.asm"

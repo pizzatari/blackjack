@@ -1,4 +1,37 @@
 ; -----------------------------------------------------------------------------
+; Macros
+; -----------------------------------------------------------------------------
+
+; -----------------------------------------------------------------------------
+; Returns the current dashboard menu selection.
+; Inputs:
+; Outputs:      A register (menu selection)
+; -----------------------------------------------------------------------------
+    MAC GET_DASH_MENU
+        lda CurrState
+        and #CURR_DASH_MENU_MASK
+        lsr
+        lsr
+        lsr
+    ENDM
+
+; -----------------------------------------------------------------------------
+; Sets the current dashboard menu selection.
+; Inputs:       Y register (menu selection)
+; Outputs:
+; -----------------------------------------------------------------------------
+    MAC SET_DASH_MENU
+        lda CurrState
+        and #~CURR_DASH_MENU_MASK
+        sta CurrState
+        tya
+        asl
+        asl
+        asl
+        ora CurrState
+        sta CurrState
+    ENDM
+; -----------------------------------------------------------------------------
 ; Desc:     Defines routines common to the banks.
 ; Inputs:   bank number
 ; Outputs:

@@ -59,7 +59,7 @@ Bank0_VerticalBlank
     ldy #SPRITE_GRAPHICS_IDX
     jsr Bank0_InitSpriteSpacing
 
-    jsr UpdateHighlights
+    jsr Bank0_UpdateHighlights
 
     TIMER_WAIT
     sta WSYNC
@@ -297,7 +297,7 @@ Bank0_InitSpriteSpacing SUBROUTINE
     sta VDELP1
     rts
 
-UpdateHighlights SUBROUTINE         ; 6 (6)
+Bank0_UpdateHighlights SUBROUTINE   ; 6 (6)
     ldx #0                          ; 2 (8)
     lda FrameCtr                    ; 3 (11)
     cmp #256-TITLE_EDITION_HEIGHT   ; 2 (13)
@@ -448,7 +448,7 @@ Bank0_ReadJoystick SUBROUTINE
 ; Ouputs:   JoyRelease (joystick bitmask)
 ; Notes:    Keypad
 ;
-;       INPT0 to INPT5: reading from bit 7 for the column
+;   INPT0 to INPT5: bit 7 stores the column state
 ;
 ;          0 1 4   INPT    2 3 5
 ;   SWCHA -------         ------- SWCHA: writing to bits 0-7 to test rows
@@ -487,7 +487,7 @@ Bank0_TestKeypad SUBROUTINE
 
 Bank0_ReadKeypad SUBROUTINE
     lda KeyTimer
-    beq .Return
+    bne .Return
 
     lda #KEY_TIMER_DELAY
     sta KeyTimer
@@ -648,7 +648,7 @@ Bank0_BettingKernel SUBROUTINE
     ldy #MSG_BAR_IDX
     jsr Bank0_SetColors
 
-    jsr Bank0_SetupBettingPrompt2      ; prompt: "Bet!"
+    jsr Bank0_SetupBettingPrompt    ; prompt: "Place Your Bet"
     ldy #MESSAGE_TEXT_HEIGHT-1
     jsr Bank0_DrawMessageBar
     ;------
@@ -838,16 +838,26 @@ Bank0_Draw6Sprites SUBROUTINE
 ; Ouputs:
 ; -----------------------------------------------------------------------------
 Bank0_GameIO SUBROUTINE
-    ; update joystick timer
-    ldx JoyTimer
-    bne .DecReturn
     jsr Bank0_ReadSwitches
-    jsr Bank0_ReadJoystick
-    jsr Bank0_TestKeypad
-    rts
-.DecReturn
+
+    ldx JoyTimer
+    beq .ReadJoy
     dex
     stx JoyTimer
+    jmp .Keypad
+.ReadJoy
+    jsr Bank0_ReadJoystick
+
+.Keypad
+    ldx KeyTimer
+    beq .TestKey
+    dex
+    sta KeyTimer
+    jmp .Return
+.TestKey
+    jsr Bank0_TestKeypad
+
+.Return
     rts
 
 ; -----------------------------------------------------------------------------
@@ -944,7 +954,7 @@ Bank0_SetupOptionsDash SUBROUTINE
 ; Inputs:
 ; Ouputs:
 ; -----------------------------------------------------------------------------
-Bank0_SetupBettingPrompt2 SUBROUTINE
+Bank0_SetupBettingPrompt SUBROUTINE
     ldx #>Bank0_BettingStr0
     stx SpritePtrs + 1
     stx SpritePtrs + 11

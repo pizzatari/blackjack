@@ -173,6 +173,8 @@ Bank2_Overscan
 
 Debug1
     CALL_BANK PROC_BANK0_GAMEIO, 0, 2
+Debug2
+
     CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
 
     ; test keypad
@@ -192,10 +194,10 @@ Debug1
     sta COLUP0
     sta COLUP1
 
-Debug2
     ; read keypad
-    CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
 Debug3
+    CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
+Debug4
 
     inc FrameCtr
 
@@ -1701,6 +1703,10 @@ WaitPlayerBet SUBROUTINE
     ; handle keypad number entry
     lda KeyPress
     beq .CheckJoystick
+
+    sta CurrBet+1
+    lda #0
+    sta KeyPress
 
 .CheckJoystick
     ; handle joystick menu navigation: get current selection

@@ -93,4 +93,8 @@ Bank0_Digit11
 	dc.b %00000000
     dc.b 0
 Bank0_ScanCodes
-   dc.b 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 11
+   dc.b <Bank0_Digit1, <Bank0_Digit2, <Bank0_Digit3
+   dc.b <Bank0_Digit4, <Bank0_Digit5, <Bank0_Digit6
+   dc.b <Bank0_Digit7, <Bank0_Digit8, <Bank0_Digit9
+   dc.b <Bank0_Digit10, <Bank0_Digit0, <Bank0_Digit11
+   ;dc.b 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 11

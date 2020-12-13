@@ -197,6 +197,16 @@ Debug2
     CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
 Debug3
 
+    ldy KeyPress
+    beq .NoKey
+.GotKey
+    ;lda Bank0_ScanCodes,y
+    ;sta CurrBet+1
+    sty CurrBet+1
+    lda #0
+    sta KeyPress
+.NoKey
+
     inc FrameCtr
 
     TIMER_WAIT

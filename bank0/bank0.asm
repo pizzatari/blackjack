@@ -484,38 +484,7 @@ Bank0_TestKeypad SUBROUTINE
     lda Bank0_KeyBits,y
     sta SWCHA
     rts
-
-Bank0_ReadKeypad SUBROUTINE
-    lda KeyTimer
-    beq .Return
-
-    lda #KEY_TIMER_DELAY
-    sta KeyTimer
-
-    lda FrameCtr
-    and #%00000011
-    tay
-    ldx Bank0_KeyIdx,y          ; starting value
-
-    ldy INPT5
-    bpl .ThirdPressed
-    ldy INPT3
-    bpl .SecondPressed
-    ldy INPT2
-    bpl .FirstPressed
-    rts
-    ;ldx #-3
-.ThirdPressed
-    inx
-.SecondPressed
-    inx
-.FirstPressed
-    inx
-    stx KeyPress
-.Return
-    rts
-
-#else
+#else 
 Bank0_TestKeypad SUBROUTINE
     lda #%11000000
     bit KeyPress    
@@ -531,8 +500,57 @@ Bank0_TestKeypad SUBROUTINE
     
 .Left2
     rts
+#endif
+
+
+#if 1
+Bank0_ReadKeypad SUBROUTINE
+    lda KeyPress
+    beq .CheckTimer
+    rts
+
+.CheckTimer
+    ldx KeyTimer
+    beq .ReadKey
+    dex
+    stx KeyTimer
+    rts
+
+.ReadKey
+    lda FrameCtr
+    and #%00000011
+    tay
+    ldx Bank0_KeyCode,y         ; starting value
+
+    lda INPT5
+    bpl .ThirdPressed
+    lda INPT3
+    bpl .SecondPressed
+    lda INPT2
+    bpl .FirstPressed
+    rts
+
+.ThirdPressed
+    inx
+.SecondPressed
+    inx
+.FirstPressed
+    inx
+    stx KeyPress
+
+    lda #KEY_TIMER_DELAY
+    sta KeyTimer
+    rts
+
+#else
 
 Bank0_ReadKeypad SUBROUTINE
+    lda KeyPress
+    bne .Return
+
+    ldx KeyTimer
+    bne .Decrement
+
     ldx #0
     sec
     lda #%11110111
@@ -568,14 +586,19 @@ Bank0_ReadKeypad SUBROUTINE
     inx
 .FirstPressed
     inx
-
     stx KeyPress
+
+.Return
+    rts
+.Decrement
+    dex
+    stx KeyTimer
     rts
 #endif
 
 Bank0_KeyBits
     dc.b %00001110, %00001101, %00001011, %00000111
-Bank0_KeyIdx
+Bank0_KeyCode
     dc.b 0, 3, 6, 9
 
 ; -----------------------------------------------------------------------------
@@ -1504,10 +1527,12 @@ Bank0_BlankSprite
 
     ORG BANK0_ORG + $f08
     RORG BANK0_RORG + $f08
+
     PAGE_BOUNDARY_SET
     include "bank0/gen/bet-prompts-48.sp"
     PAGE_BOUNDARY_CHECK "Bank0 prompts"
-    PAGE_BYTES_REMAINING
+
+    PAGE_BYTES_REMAINING_FROM $ff6-BS_SIZEOF
 
     ORG BANK0_ORG + $ff6-BS_SIZEOF
     RORG BANK0_RORG + $ff6-BS_SIZEOF

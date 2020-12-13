@@ -495,7 +495,15 @@ MemBlockEnd
 ScanDebug                   SET PlayerCards+#5
 
     SEG rom
+
+PAGE_CURR_BANK SET 0
     include "bank0/bank0.asm"
+
+PAGE_CURR_BANK SET 1
     include "bank1/bank1.asm"
+
+PAGE_CURR_BANK SET 2
     include "bank2/bank2.asm"
+
+PAGE_CURR_BANK SET 3
     include "bank3/bank3.asm"

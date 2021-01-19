@@ -1885,7 +1885,7 @@ Bank3_Sequences
     ENDIF
 
     include "bank3/gfx/help.asm"        ; must reside within a single page
-    include "bank3/lib/animation.asm"
+    include "../shared/lib/animation.asm"
 
 #if 0
 ; -----------------------------------------------------------------------------

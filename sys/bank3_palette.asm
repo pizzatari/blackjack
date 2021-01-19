@@ -1,4 +1,11 @@
 #if VIDEO_MODE == VIDEO_NTSC
+
+BG_COLOR                    = COLOR_GREEN
+PF_COLOR                    = COLOR_DGREEN
+CHIP_COLOR                  = COLOR_YELLOW
+CARD_COLOR                  = COLOR_WHITE
+CARD_INACTIVE_COLOR         = COLOR_LGRAY
+
 Bank3_MessagePalette
     dc.b $3e, $3c, $ee, $ee, $ee, $ec, $ea
     dc.b $2e, $3e, $3c, $3a, $fe, $ee, $1e, $de

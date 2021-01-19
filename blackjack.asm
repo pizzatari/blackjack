@@ -51,43 +51,19 @@ NO_ILLEGAL_OPCODES          = 1
 POSITION_OBJECT_VERS        = 1
 BANKSWITCH_VERS             = 1
 
-PIP_COLORS                  = 0
-
-; TEST_RAND_ON:
-;   0 = off
-;   1 = non-random numbers
-;   2 = random cards
-TEST_RAND_ON                = 0
-TEST_TIME_ON                = 0
-TEST_TIMING_ON              = 0
-TEST_STACK_DEBUG            = 0
-
-FILLER_CHAR                 = $4f ; $ea
-BALLAST_ON                  = 0
-
-    IFCONST AFP_TARGET
-        IF AFP_TARGET != 0
-BALLAST_ON                  = 1
-        ELSE
-BALLAST_ON                  = 0
-        ENDIF
-    ENDIF
-
-    LIST OFF
-    include "include/bankswitch.h"
-    include "include/debug.h"
-    include "include/defines.h"
-    include "include/draw.h"
-    include "include/macro.h"
-    include "include/menu.h"
-    include "include/position.h"
-    include "include/screen.h"
-    include "include/time.h"
-    include "include/util.h"
-    include "include/vcs.h"
     include "sys/video.h"
-    include "lib/macros.asm"
-    LIST ON
+    include "../shared/include/bankswitch.h"
+    include "../shared/include/bits.h"
+    include "../shared/include/debug.h"
+    include "../shared/include/draw.h"
+    include "../shared/include/macro.h"
+    include "../shared/include/position.h"
+    include "../shared/include/time.h"
+    include "../shared/include/util.h"
+    include "../shared/include/vcs.h"
+    include "include/defines.h"
+    include "include/menu.h"
+    include "include/screen.h"
 
 ; -----------------------------------------------------------------------------
 ; Constants
@@ -109,6 +85,28 @@ BANK0_HOTSPOT               = $fff6
 BANK1_HOTSPOT               = BANK0_HOTSPOT+1
 BANK2_HOTSPOT               = BANK0_HOTSPOT+2
 BANK3_HOTSPOT               = BANK0_HOTSPOT+3
+
+PIP_COLORS                  = 0
+
+; TEST_RAND_ON:
+;   0 = off
+;   1 = non-random numbers
+;   2 = random cards
+TEST_RAND_ON                = 0
+TEST_TIME_ON                = 0
+TEST_TIMING_ON              = 0
+TEST_STACK_DEBUG            = 0
+
+FILLER_CHAR                 = $4f ; $ea
+BALLAST_ON                  = 0
+
+    IFCONST AFP_TARGET
+        IF AFP_TARGET != 0
+BALLAST_ON                  = 1
+        ELSE
+BALLAST_ON                  = 0
+        ENDIF
+    ENDIF
 
 ; offscreen timings
 TIME_VBLANK                 = 37*76/64  ; TIM64T (43.9375)
@@ -231,7 +229,6 @@ NEW_PLAYER_CHIPS            = $1000     ; BCD value
     ORG $80
 
 ; Variables global to the all banks
-; -----------------------------------------------------------------------------
 GlobalVars
 
 ; Game state selects which handler is executed on the current frame.
@@ -495,7 +492,6 @@ MemBlockEnd
 ScanDebug                   SET PlayerCards+#5
 
     SEG rom
-
 PAGE_CURR_BANK SET 0
     include "bank0/bank0.asm"
 

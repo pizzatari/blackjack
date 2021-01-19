@@ -6,16 +6,16 @@ VIDEO_MODE                  = VIDEO_NTSC
 
 #if VIDEO_MODE == VIDEO_NTSC
 ; total 262
-NUM_VBLANK                  = 37        ; 40 including vsync
-NUM_OVERSCAN                = 30
+VBLANK_HEIGHT               = 37        ; 40 including vsync
+OVERSCAN_HEIGHT             = 30
 SCREEN_WIDTH                = 160
 SCREEN_HEIGHT               = 192
 #endif
 
 #if VIDEO_MODE == VIDEO_PAL || VIDEO_MODE == VIDEO_PAL60 || VIDEO_MODE == VIDEO_SECAM
 ; total 312
-NUM_VBLANK                  = 45        ; 48 including vysnc
-NUM_OVERSCAN                = 36
+VBLANK_HEIGHT               = 45        ; 48 including vysnc
+OVERSCAN_HEIGHT             = 36
 SCREEN_WIDTH                = 160
 SCREEN_HEIGHT               = 228
 #endif
@@ -23,29 +23,23 @@ SCREEN_HEIGHT               = 228
 ; Colors
 #if VIDEO_MODE == VIDEO_NTSC
 COLOR_BLACK                 = $00
+COLOR_WHITE                 = $0E
 COLOR_BROWN                 = $C0
 COLOR_DGRAY                 = $02
-COLOR_GRAY                  = $04
-COLOR_LGRAY                 = $06
+COLOR_GRAY                  = $06
+COLOR_LGRAY                 = $08
 COLOR_LLGREEN               = $CE
 COLOR_LGREEN                = $C8
 COLOR_MGREEN                = $C6
 COLOR_GREEN                 = $C4
 COLOR_DGREEN                = $C2
-COLOR_RED                   = $24
-COLOR_DRED                  = $22
+COLOR_RED                   = $44
+COLOR_DRED                  = $40
 COLOR_PINK                  = $3E
-COLOR_WHITE                 = $0E
 COLOR_YELLOW                = $EE
 COLOR_VIOLET                = $66
 COLOR_BLUE                  = $86
 COLOR_ORANGE                = $38
-
-BG_COLOR                    = COLOR_GREEN
-PF_COLOR                    = COLOR_DGREEN
-CHIP_COLOR                  = COLOR_YELLOW
-CARD_COLOR                  = COLOR_WHITE
-CARD_INACTIVE_COLOR         = COLOR_LGRAY
 #endif
 
 ; Colors

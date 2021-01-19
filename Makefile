@@ -7,12 +7,14 @@ MAKE_PFIELD = ./bin/make-playfield
 
 ASM_FLAGS   = -v0 -f3 -l"$*.lst" -s"$*.sym" 
 
-DEPS_ASM	= $(wildcard ./lib/*.asm) $(wildcard ./gfx/*.asm) \
+DEPS_ASM	= $(wildcard ../atarilib/lib/*.asm) $(wildcard ./lib/*.asm) \
 			$(wildcard bank?/*.asm) $(wildcard bank?/gfx/*.asm) \
+			$(wildcard ./gfx/*.asm) \
 			$(wildcard ./sys/*.asm)
-DEPS_H		= $(wildcard ./include/*.h) $(wildcard ./sys/*.h)
+DEPS_H		= $(wildcard ../atarilib/include/*.h) $(wildcard ./include/*.h) \
+			$(wildcard ./sys/*.h)
 
-DEPS_M4		= $(wildcard ./lib/*.m4)
+DEPS_M4		= $(wildcard ../atarilib/lib/*.m4) $(wildcard ./lib/*.m4)
 DEPS_S		= $(DEPS_M4:.m4=.s)
 
 DEPS_MSP	= $(wildcard ./gen/*.sprite) $(wildcard ./bank?/gen/*.sprite)
@@ -25,12 +27,12 @@ TARGET		= blackjack.bin
 
 .PHONY: all
 all: $(TARGET) 
-	chmod ug+x $(TARGET)
 
 $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 
 %.bin: %.asm
 	$(ASM) "$<" $(ASM_FLAGS) -o"$@"
+	chmod ug+x $(TARGET)
 
 %.sp: %.sprite $<
 	$(PERL) $(MAKE_SPRITE) "$<" -o"$@" -H1
@@ -48,7 +50,6 @@ $(TARGET): $(DEPS_S) $(DEPS_SP) $(DEPS_PF) $(DEPS_ASM) $(DEPS_H)
 deploy: all
 	cp *.bin *.lst *.sym /var/www/html/roms/
 	chmod ugo+r /var/www/html/roms/*.bin
-	@echo Copying to: http://98.225.37.203/roms/
 
 .PHONY: clean
 clean:

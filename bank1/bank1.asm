@@ -628,8 +628,8 @@ Bank1_MotionJitterY
 ; -----------------------------------------------------------------------------
 ; Sound
 ; -----------------------------------------------------------------------------
-    include "bank1/lib/sound.asm"
-    include "sys/bank1_sound_data.asm"
+    include "../atarilib/lib/sound.asm"
+    include "sys/bank1_audio.asm"
 
     IF BALLAST_ON == 1
         ; ballast code

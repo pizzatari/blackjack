@@ -145,7 +145,6 @@ Bank3_PlayKernel SUBROUTINE
     ldx #DEALER_IDX
     stx PlyrIdx
     jsr Bank3_ResetCardSprites
-    ;TIMED_JSR Bank3_SetupCardSprites, TIME_CARD_SETUP, TIM8T
     sta WSYNC
     jsr Bank3_SetupCardSprites
 
@@ -168,7 +167,6 @@ Bank3_PlayKernel SUBROUTINE
     sta NUSIZ1
 
     ; draw dealer's pot of chips
-    ;TIMED_JSR Bank3_SetupChipsPot, TIME_CHIPS_POT, TIM8T
     jsr Bank3_SetupChipsPot
     ldy #CHIPS_HEIGHT-1
     jsr Bank3_Draw6Sprites
@@ -286,7 +284,6 @@ Bank3_PlayKernel SUBROUTINE
     sta NUSIZ0
     stx NUSIZ1
 
-    ;TIMED_JSR Bank3_SetupCardSprites, TIME_CARD_SETUP, TIM8T
     jsr Bank3_SetupCardSprites
     TIMER_WAIT
 
@@ -323,7 +320,6 @@ Bank3_PlayKernel SUBROUTINE
     sta NUSIZ0
     stx NUSIZ1
 
-    ;TIMED_JSR Bank3_SetupCardSprites, TIME_CARD_SETUP, TIM8T
     jsr Bank3_SetupCardSprites
     TIMER_WAIT
 
@@ -431,7 +427,7 @@ Bank3_SetupMessageBar SUBROUTINE
     ; map highest PlayerFlags bit to a result message
     jsr Bank3_Log2
     dex
-    ldy Bank3_Multiply6,x
+    ldy Bank3_Mult6,x
 
     lda Bank3_ResultMessagesLSB,y
     sta SpritePtrs
@@ -468,7 +464,7 @@ Bank3_SetupPromptBar SUBROUTINE
     lda Bank3_GameStateFlags,x
     and #GS_PROMPT_IDX_MASK             ; chop off extra bits
     tax
-    ldy Bank3_Multiply4,x
+    ldy Bank3_Mult4,x
 
     lda #<Bank3_LeftArrow
     sta SpritePtrs
@@ -634,7 +630,7 @@ Bank3_SetupDashboard SUBROUTINE
     tay
     clc
 
-    lda Bank3_Multiply6,y
+    lda Bank3_Mult6,y
     adc #<Bank3_Opts
     sta SpritePtrs+8
     stx SpritePtrs+9
@@ -941,7 +937,7 @@ Bank3_SetupCardSprites SUBROUTINE
 
     ; set up the end index into PlayerCards
     ldy PlyrIdx                         ; 3 (3)
-    ldx Bank3_Multiply6+1,y             ; 4 (7)
+    ldx Bank3_Mult6+1,y                 ; 4 (7)
     stx EndIdx                          ; 3 (10)
 
     ; set up the graphics pointers
@@ -954,7 +950,7 @@ Bank3_SetupCardSprites SUBROUTINE
     and #CARD_RANK_MASK                 ; 2 (9)
     tax                                 ; 2 (11)
     lda Bank3_CardRankSprite,x          ; 4 (15)    get the graphics LSB
-    ldx Bank3_Multiply2,y               ; 4 (19)
+    ldx Bank3_Mult2,y                   ; 4 (19)
     sta SpritePtrs,x                    ; 4 (23)    ranks put in SpritePtrs
 
     ; assign suit
@@ -1037,7 +1033,7 @@ Bank3_SetupCardSprites SUBROUTINE
     sta SpritePtrs+1,x                  ; 4 (64)
 
     ldx PlyrIdx                         ; 3 (67)
-    lda Bank3_Multiply11-1,y            ; 4 (71)
+    lda Bank3_Mult11-1,y                ; 4 (71)
     sec                                 ; 2 (73)
     sbc #1                              ; 2 (75)    A = A - 1
     clc                                 ; 2 (1)
@@ -2170,6 +2166,8 @@ Bank3_GameStateFlags
     dc.b %00110000      ; GS_DEALER_HAND_OVER
     dc.b %00110000      ; GS_GAME_OVER
     dc.b %00110000      ; GS_INTERMISSION
+    dc.b %00110000      ; GS_BROKE_BANK1
+    dc.b %00110000      ; GS_BROKE_BANK2
 
     include "sys/bank3_palette.asm"
 

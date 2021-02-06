@@ -510,10 +510,10 @@ Bank0_ReadKeypad SUBROUTINE
     rts
 
 .CheckTimer
-    ldx KeyTimer
+    ldx InputTimer
     beq .ReadKey
     dex
-    stx KeyTimer
+    stx InputTimer
     rts
 
 .ReadKey
@@ -538,8 +538,8 @@ Bank0_ReadKeypad SUBROUTINE
     inx
     stx KeyPress
 
-    lda #KEY_TIMER_DELAY
-    sta KeyTimer
+    ;lda #INPUT_DELAY
+    ;sta InputTimer
     rts
 
 #else
@@ -548,7 +548,7 @@ Bank0_ReadKeypad SUBROUTINE
     lda KeyPress
     bne .Return
 
-    ldx KeyTimer
+    ldx InputTimer
     bne .Decrement
 
     ldx #0
@@ -592,7 +592,7 @@ Bank0_ReadKeypad SUBROUTINE
     rts
 .Decrement
     dex
-    stx KeyTimer
+    stx InputTimer
     rts
 #endif
 
@@ -677,7 +677,8 @@ Bank0_BettingKernel SUBROUTINE
     ;------
 
     ; current bet section -----------------------------------------------------
-    jsr Bank0_SetupBettingBar
+    SET_POINTER TempPtr, CurrBet1
+    jsr Bank0_SetupInteger
 
     ldy #SPRITE_BET_IDX
     jsr Bank0_SetSpriteOptions
@@ -688,7 +689,6 @@ Bank0_BettingKernel SUBROUTINE
     sta COLUBK              ; 3 (5)
 
     ldy #POPUP_BAR_IDX
-    ;ldy #MSG_BAR_IDX
     jsr Bank0_SetColors
     lda #$0e
     sta COLUP0
@@ -753,7 +753,8 @@ Bank0_BettingKernel SUBROUTINE
     sta GRP1
 
     ; status bar section -----------------------------------------------------
-    TIMED_JSR Bank0_SetupStatusBar, TIME_STATUS_BAR, TIM8T
+    SET_POINTER TempPtr, PlayerChips
+    TIMED_JSR Bank0_SetupInteger, TIME_STATUS_BAR, TIM8T
 
     ldy #SPRITE_STATUS_IDX
     jsr Bank0_SetSpriteOptions
@@ -863,24 +864,14 @@ Bank0_Draw6Sprites SUBROUTINE
 Bank0_GameIO SUBROUTINE
     jsr Bank0_ReadSwitches
 
-    ldx JoyTimer
-    beq .ReadJoy
-    dex
-    stx JoyTimer
-    jmp .Keypad
-.ReadJoy
+    ldx InputTimer
+    bne .Timer
     jsr Bank0_ReadJoystick
-
-.Keypad
-    ldx KeyTimer
-    beq .TestKey
-    dex
-    sta KeyTimer
-    jmp .Return
-.TestKey
     jsr Bank0_TestKeypad
-
-.Return
+    rts
+.Timer
+    dex
+    stx InputTimer
     rts
 
 ; -----------------------------------------------------------------------------
@@ -1003,98 +994,56 @@ Bank0_SetupBettingPrompt SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Assigns the chip score sprites.
-; Inputs:   SpritePtrs, Player Index
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_SetupStatusBar SUBROUTINE
-    ;SET_CHIP_SCORE SpritePtrs, PLAYER1_IDX
-    ldx #0;
-.Loop
-    ; left digit
-    lda PlayerChips+[PLAYER1_IDX*NUM_CHIP_BYTES],x
-    lsr
-    lsr
-    lsr
-    lsr
-    tay
-    lda Bank0_Multiply6,y
-    ldy Bank0_Multiply4,x
-    clc
-    adc #<Bank0_Digit0
-    sta SpritePtrs,y
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+1,y
-
-    ; right digit
-    lda PlayerChips+[PLAYER1_IDX*NUM_CHIP_BYTES],x
-    and #$0F
-    tay
-    lda Bank0_Multiply6,y
-    ldy Bank0_Multiply4,x
-    clc
-    adc #<Bank0_Digit0
-    sta SpritePtrs+2,y
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+3,y
-
-    inx
-    cpx #NUM_CHIP_BYTES
-    bne .Loop
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Assigns the bet sprites as a 4 digit number.
-; Inputs:   SpritePtrs, Current Bet (2 bytes)
+; Desc:     Assigns sprite pointers to display a 6 digit number.
+; Inputs:   SpritePtrs, TempPtr (pointer to 3 byte BCD integer)
 ; Outputs:
 ; -----------------------------------------------------------------------------
-Bank0_SetupBettingBar SUBROUTINE
+Bank0_SetupInteger SUBROUTINE
+    ldy #2
+.Loop
+    ; left digit
+    lda (TempPtr),y
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    clc
+    lda Bank0_Multiply6,x       ; account for digit height
+    ldx Bank0_Multiply4,y       ; X = 2 digits x 2 bytes
+    adc #<Bank0_Digit0
+    sta SpritePtrs,x
+    lda #>Bank0_Digit0
+    adc #0
+    sta SpritePtrs+1,x
+
+    ; right digit
+    lda (TempPtr),y
+    and #$0f
+    tax
+    clc
+    lda Bank0_Multiply6,x       ; account for digit height
+    ldx Bank0_Multiply4,y       ; X = 2 digits x 2 bytes
+    adc #<Bank0_Digit0
+    sta SpritePtrs+2,x
+    lda #>Bank0_Digit0
+    adc #0
+    sta SpritePtrs+3,x
+
+    dey
+    bpl .Loop
+
+    ; show a dollar sign if left-most digit is 0
+    ldy #0
+    lda (TempPtr),y
+    and #$f0
+    bne .Return
     lda #<Bank0_Dollar
     sta SpritePtrs
     lda #>Bank0_Dollar
     sta SpritePtrs+1
 
-    lda #<Bank0_BlankSprite
-    sta SpritePtrs+10
-    lda #>Bank0_BlankSprite
-    sta SpritePtrs+11
-
-    ldx #0;
-.Loop
-    ; left digit
-    lda CurrBet,x
-    lsr
-    lsr
-    lsr
-    lsr
-    tay
-    lda Bank0_Multiply6,y
-    ldy Bank0_Multiply4,x
-    clc
-    adc #<Bank0_Digit0
-    sta SpritePtrs+2,y
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+3,y
-
-    ; right digit
-    lda CurrBet,x
-    and #$0F
-    tay
-    lda Bank0_Multiply6,y
-    ldy Bank0_Multiply4,x
-    clc
-    adc #<Bank0_Digit0
-    sta SpritePtrs+4,y
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+5,y
-
-    inx
-    cpx #NUM_BET_BYTES
-    bne .Loop
+.Return
     rts
 
 ; -----------------------------------------------------------------------------
@@ -1413,38 +1362,40 @@ Bank0_PromptMessageBlanks
 ; bit 3:        flicker the currently selected object
 ; bit 0,1,2:    index into PromptMessages table
 Bank0_GameStateFlags
-    dc.b 0                 ; GS_TITLE_SCREEN
-    dc.b %10101001         ; GS_NEW_GAME
-    dc.b %10001001         ; GS_PLAYER_BET
-    dc.b %10001001         ; GS_PLAYER_BET_DOWN
-    dc.b %10001001         ; GS_PLAYER_BET_UP
-    dc.b %01000000         ; GS_OPEN_DEAL1
-    dc.b %01000000         ; GS_OPEN_DEAL2
-    dc.b %01000000         ; GS_OPEN_DEAL3
-    dc.b %01000000         ; GS_OPEN_DEAL4
-    dc.b %01000000         ; GS_OPEN_DEAL5
-    dc.b %01000010         ; GS_DEALER_SET_FLAGS
-    dc.b %01000010         ; GS_PLAYER_SET_FLAGS
-    dc.b %01000010         ; GS_PLAYER_TURN
-    dc.b %01000010         ; GS_PLAYER_PRE_HIT
-    dc.b %01000010         ; GS_PLAYER_HIT
-    dc.b %01000010         ; GS_PLAYER_POST_HIT
-    dc.b %01000011         ; GS_PLAYER_SURRENDER
-    dc.b %01000100         ; GS_PLAYER_DOUBLEDOWN
-    dc.b %01000101         ; GS_PLAYER_SPLIT
-    dc.b %01000101         ; GS_PLAYER_SPLIT_DEAL
-    dc.b %01000110         ; GS_PLAYER_INSURANCE
-    dc.b %00110000         ; GS_PLAYER_BLACKJACK
-    dc.b %00110000         ; GS_PLAYER_WIN
-    dc.b %00110000         ; GS_PLAYER_PUSH
-    dc.b 0                 ; GS_PLAYER_HAND_OVER
-    dc.b %00110000         ; GS_DEALER_TURN
-    dc.b %00110000         ; GS_DEALER_PRE_HIT
-    dc.b %00110000         ; GS_DEALER_HIT
-    dc.b %00110000         ; GS_DEALER_POST_HIT
-    dc.b %00110000         ; GS_DEALER_HAND_OVER
-    dc.b %00110000         ; GS_GAME_OVER
-    dc.b %00110000         ; GS_INTERMISSION
+    dc.b 0                  ; GS_TITLE_SCREEN
+    dc.b %10101001          ; GS_NEW_GAME
+    dc.b %10001001          ; GS_PLAYER_BET
+    dc.b %10001001          ; GS_PLAYER_BET_DOWN
+    dc.b %10001001          ; GS_PLAYER_BET_UP
+    dc.b %01000000          ; GS_OPEN_DEAL1
+    dc.b %01000000          ; GS_OPEN_DEAL2
+    dc.b %01000000          ; GS_OPEN_DEAL3
+    dc.b %01000000          ; GS_OPEN_DEAL4
+    dc.b %01000000          ; GS_OPEN_DEAL5
+    dc.b %01000010          ; GS_DEALER_SET_FLAGS
+    dc.b %01000010          ; GS_PLAYER_SET_FLAGS
+    dc.b %01000010          ; GS_PLAYER_TURN
+    dc.b %01000010          ; GS_PLAYER_PRE_HIT
+    dc.b %01000010          ; GS_PLAYER_HIT
+    dc.b %01000010          ; GS_PLAYER_POST_HIT
+    dc.b %01000011          ; GS_PLAYER_SURRENDER
+    dc.b %01000100          ; GS_PLAYER_DOUBLEDOWN
+    dc.b %01000101          ; GS_PLAYER_SPLIT
+    dc.b %01000101          ; GS_PLAYER_SPLIT_DEAL
+    dc.b %01000110          ; GS_PLAYER_INSURANCE
+    dc.b %00110000          ; GS_PLAYER_BLACKJACK
+    dc.b %00110000          ; GS_PLAYER_WIN
+    dc.b %00110000          ; GS_PLAYER_PUSH
+    dc.b 0                  ; GS_PLAYER_HAND_OVER
+    dc.b %00110000          ; GS_DEALER_TURN
+    dc.b %00110000          ; GS_DEALER_PRE_HIT
+    dc.b %00110000          ; GS_DEALER_HIT
+    dc.b %00110000          ; GS_DEALER_POST_HIT
+    dc.b %00110000          ; GS_DEALER_HAND_OVER
+    dc.b %00110000          ; GS_GAME_OVER
+    dc.b %00110000          ; GS_INTERMISSION
+    dc.b %00110000          ; GS_BROKE_BANK1
+    dc.b %00110000          ; GS_BROKE_BANK2
 
 Bank0_PlayMenuSprite
     dc.b <HelpHit           ; DASH_HIT_IDX

@@ -7,6 +7,45 @@
     RORG BANK2_RORG
 
 ; -----------------------------------------------------------------------------
+; Local Macros
+; -----------------------------------------------------------------------------
+    ; -----------------------------------------------------------------------------
+    ; Desc:     Assigns a pointer to the selected denomination.
+    ; Param:    2 byte pointer variable
+    ; Input:    X register (bet menu selection: 0-5)
+    ; Output:
+    ; -----------------------------------------------------------------------------
+    MAC SET_DENOM_PTR
+.DstPtr SET {1}
+
+    clc
+    lda #<Bank2_DenomValue
+    adc Bank2_Mult3,x
+    sta .DstPtr
+    lda #>Bank2_DenomValue
+    adc #0
+    sta .DstPtr+1
+    ENDM
+
+    ; -----------------------------------------------------------------------------
+    ; Desc:     Copies a 3-byte integer.
+    ; Param:    destination, source
+    ; Input:
+    ; Output:
+    ; -----------------------------------------------------------------------------
+    MAC COPY_INT3
+.Dst SET {1}
+.Src SET {2}
+
+    lda .Src
+    sta .Dst
+    lda .Src+1
+    sta .Dst+1
+    lda .Src+2
+    sta .Dst+2
+    ENDM
+
+; -----------------------------------------------------------------------------
 ; Shared Variables
 ; -----------------------------------------------------------------------------
 ; animation add (must be same as vars in Bank2)
@@ -16,17 +55,14 @@ Bank2_AddPos  SET TempVars+3
 ; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
-TriggerTimer    = RandAlt
 StackPtr        = TempVars
 Score           = TempVars+1
 NumAces         = TempVars+2
 NewCard         = TempVars+2
 FindStart       = TempVars+2
 BetSelect       = TempVars+2
-
-; disable trigger after the end of a game: RandAlt is safe to use in the
-; intermission state (GS_INTERMISSION)
-TGR_TIMER       = 60        ; 1 second
+PayoutCtr       = TempVars+2
+TempChips       = TempVars+3
 
 Bank2_Reset
     ; switch to bank 0 if we start here
@@ -44,16 +80,17 @@ Bank2_Init
     jsr Bank2_ResetGame
 
     ; joystick delay
-    lda #JOY_TIMER_DELAY
-    sta JoyTimer
+    lda #INPUT_DELAY
+    sta InputTimer
 
     lda #0
     sta REFP0
     sta REFP1
+    lda #[NEW_PLAYER_CHIPS & $ff0000] >> 16
     sta PlayerChips
-    lda #>NEW_PLAYER_CHIPS
+    lda #[NEW_PLAYER_CHIPS & $00ff00] >> 8
     sta PlayerChips+1
-    lda #<NEW_PLAYER_CHIPS
+    lda #[NEW_PLAYER_CHIPS & $0000ff]
     sta PlayerChips+2
 
     lda #DENOM_START_SELECTION
@@ -148,17 +185,20 @@ Bank2_FrameStart SUBROUTINE
     ; -------------------------------------------------------------------------
     ; kernel
     ; -------------------------------------------------------------------------
-    ; decide which kernel to execute
-    ldy GameState
-    lda Bank2_GameStateFlags,y
-    and #GS_SHOW_BETTING_FLAG
-    beq .PlayKernel
-
-    JUMP_BANK PROC_BANK0_BETTINGKERNEL, 0
-    jmp Bank2_Overscan
-
-.PlayKernel
-    JUMP_BANK PROC_BANK3_PLAYKERNEL, 3
+    ; decide which kernel to call
+    ldx #0
+.SearchKernel
+    lda Bank2_KernelKey,x
+    beq .CallKernel
+    cmp GameState
+    beq .CallKernel
+    inx
+    jmp .SearchKernel
+.CallKernel
+    lda Bank2_KernelProc,x
+    ldy Bank2_KernelBank,x
+    tax
+    jmp Bank2_JumpBank
 
     ; -------------------------------------------------------------------------
     ; overscan
@@ -171,10 +211,7 @@ Bank2_Overscan
     lda #TIME_OVERSCAN
     sta TIM64T
 
-Debug1
     CALL_BANK PROC_BANK0_GAMEIO, 0, 2
-Debug2
-
     CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
 
     ; test keypad
@@ -195,9 +232,7 @@ Debug2
     sta COLUP1
 
     ; read keypad
-Debug3
     CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
-Debug4
 
     ldy KeyPress
     beq .NoKey
@@ -210,11 +245,9 @@ Debug4
 .NoKey
 
     inc FrameCtr
-
     TIMER_WAIT
-    ; -------------------------------------------------------------------------
-
     jmp Bank2_FrameStart
+    ; -------------------------------------------------------------------------
 
 ; -----------------------------------------------------------------------------
 ; SUBROUTINES
@@ -241,181 +274,173 @@ Bank2_DeckChange SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Increases bet by the amount selected by Bank2_DenomValue[X]
-; Inputs:   X (index to Bank2_DenomValue)
-; Ouputs:
-; Notes:    BCD must be turned on.
+; Desc:     Add two 3-byte BCD integers.
+; Inputs:   TempPtr (addend)
+;           TempPtr2 (addend)
+; Outputs:  TempPtr (result)
+; Notes:    BCD must be turned on. Integers are MSB order.
 ; -----------------------------------------------------------------------------
-Bank2_IncreaseBet SUBROUTINE
-    ; denomination values are -1 their actual value, so correct for this by
-    ; forcing a borrow
+Bank2_AddInt3 SUBROUTINE
+    clc
+
+    ldy #2
+    lda (TempPtr),y
+    adc (TempPtr2),y
+    sta (TempPtr),y
+
+    dey
+    lda (TempPtr),y
+    adc (TempPtr2),y
+    sta (TempPtr),y
+
+    dey
+    lda (TempPtr),y
+    adc (TempPtr2),y
+    sta (TempPtr),y
+
+    rts
+
+; -----------------------------------------------------------------------------
+; Desc:     Subtract two 3-byte BCD integers.
+; Inputs:   TempPtr (minuend)
+;           TempPtr2 (subtrahend)
+; Outputs:  TempPtr (result)
+; Notes:    BCD must be turned on. Integers are MSB order.
+; -----------------------------------------------------------------------------
+Bank2_SubInt3 SUBROUTINE
     sec
-    lda CurrBet+1
-    adc Bank2_DenomValue,x
-    sta CurrBet+1
-    lda CurrBet
-    adc #0
-    sta CurrBet
+
+    ldy #2
+    lda (TempPtr),y
+    sbc (TempPtr2),y
+    sta (TempPtr),y
+
+    dey
+    lda (TempPtr),y
+    sbc (TempPtr2),y
+    sta (TempPtr),y
+
+    dey
+    lda (TempPtr),y
+    sbc (TempPtr2),y
+    sta (TempPtr),y
+
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Decreases bet by the amount selected by Bank2_DenomValue[X]
-; Inputs:   X (index to Bank2_DenomValue)
-; Ouputs:
-; Notes:    BCD must be turned on.
+; Desc:     Divide a 3-byte BCD integer by 2.
+; Inputs:   TempPtr2 (dividend)
+; Outputs:  TempPtr2 (result)
+; Notes:    BCD must be turned on. Integers are MSB order.
 ; -----------------------------------------------------------------------------
-Bank2_DecreaseBet SUBROUTINE
-    ; denomination values are -1 their actual value, so correct for this by
-    ; forcing a carry
+Bank2_Div2Int3 SUBROUTINE
+    ldy #2
+.Divide
+    lda (TempPtr2),y
+    tax
+    and #%11101111              ; force 10s place to be even
+    lsr                         ; divide by 2
+    sta (TempPtr2),y
+    php                         ; save the carry flag
+    ; check if 10s place was odd
+    txa
+    and #%00010000
+    beq .IsEven10
     clc
-    lda CurrBet+1
-    sbc Bank2_DenomValue,x
-    sta CurrBet+1
-    lda CurrBet
-    sbc #0
-    sta CurrBet
-    rts
+    lda #$05
+    adc (TempPtr2),y            ; 10s place is odd, add 10/2
+    sta (TempPtr2),y
+.IsEven10
+    dey                         ; next byte
+    bpl .Divide
 
-; -----------------------------------------------------------------------------
-; Desc:     Check if player has enough chips to match CurrBet. Prevent bets
-;           higher than player's available chips.
-; Inputs:   Arg1 (MSB), Arg2 (LSB)
-; Ouputs:   A register (1 for yes, 0 for no)
-; Notes:    BCD must be turned on.
-; -----------------------------------------------------------------------------
-Bank2_PlayerHasEnoughChips SUBROUTINE
-    ; check for 0 chips
+    ; corrections for 1s place being odd
+    ldy #1
+.Correction
+    plp
+    bcc .Skip
     clc
-    lda PlayerChips
-    adc PlayerChips+1
-    adc PlayerChips+2
-    beq .BadBet
+    lda #$50
+    adc (TempPtr2),y            ; 10s place is odd, +10/2 to next digit
+    sta (TempPtr2),y
+.Skip
+    iny
+    cpy #3
+    bne .Correction
 
-    ; check 100,000's and 10,000's places
-    lda #0
-    cmp PlayerChips
-    bcc .GoodBet                                        ; if A < M
-    bne .BadBet
-    ; check 1000's and 100's places
-    lda Arg1
-    cmp PlayerChips+1
-    bcc .GoodBet                                        ; if A < M
-    bne .BadBet
-    ; check 10's and 1's places
-    lda PlayerChips+2
-    cmp Arg2
-    bcs .GoodBet                                        ; if M >= A
-.BadBet
-    lda #0
-    rts
-.GoodBet
-    lda #1
+    plp                         ; throw away the last one
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Check if the dealer can return chps.
-; Inputs:   X (index to Bank2_DenomValue)
-; Ouputs:   A register (1 if good, 0 if not)
-; Notes:    BCD must be turned on.
+; Desc:     Compare two unsigned 3-byte BCD integers in MSB order.
+; Inputs:   TempPtr
+;           TempPtr2
+; Outputs:  A register
+;           1 if *TempPtr > *TempPtr2
+;           0 if *TempPtr = *TempPtr2
+;          -1 if *TempPtr < *TempPtr2
 ; -----------------------------------------------------------------------------
-Bank2_CheckCanReturnChips SUBROUTINE
-    ; prevent return when zero chips in the pot
-    lda CurrBet
-    ora CurrBet+1
-    beq .Return
+Bank2_CompareInt3 SUBROUTINE
+    ldy #0
+    lda (TempPtr),y
+    cmp (TempPtr2),y
+    bcc .ReturnLt
+    bne .ReturnGtr
 
-    ; prevent over-return of chips
+    iny
+    lda (TempPtr),y
+    cmp (TempPtr2),y
+    bcc .ReturnLt
+    bne .ReturnGtr
+
+    iny
+    lda (TempPtr),y
+    cmp (TempPtr2),y
+    bcc .ReturnLt
+    bne .ReturnGtr
+
+    ; return equal
     lda #0
-    cmp CurrBet
-    bcc .BetOkay                                        ; if A < M
-    lda Bank2_DenomValue,x
-    cmp CurrBet+1
-    bcc .BetOkay                                        ; if A < M
-    jmp .Return
-
-.BetOkay
-    lda #1
     rts
 
-.Return
-    lda #0
+.ReturnLt
+    lda #-1
+    rts
+
+.ReturnGtr
+    lda #1
     rts
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Make another bet using CurrBet.
 ; Inputs:   CurrBet
-; Ouputs:
+; Outputs:  A register (0 bet okay, -1 not enough chips)
 ; Notes:    BCD must be turned on.
 ; -----------------------------------------------------------------------------
 Bank2_ApplyCurrBet SUBROUTINE
-    lda CurrBet
-    sta Arg1
-    lda CurrBet+1
-    sta Arg2
-    jsr Bank2_PlayerHasEnoughChips
-    bne .BetOkay
-
-    ; player does not have enough chips, so resetting bet to 0
-.BadBet
-    lda #0
-    sta CurrBet
-    sta CurrBet+1
-    jmp .Return
-
-.BetOkay
     sed
-    jsr Bank2_SubtractBetChips
-    cld
+    SET_POINTER TempPtr, PlayerChips
+    COPY_INT3 TempChips, CurrBet1
+    SET_POINTER TempPtr2, TempChips
+    jsr Bank2_CompareInt3
+    bmi .BadBet
+
+    jsr Bank2_SubInt3
+    lda #0
 
 .Return
+    cld
     rts
 
-; -----------------------------------------------------------------------------
-; Desc:     Take bet chips from player.
-; Inputs:   X (index to Bank2_DenomValue)
-; Ouputs:
-; Notes:    BCD must be turned on.
-; -----------------------------------------------------------------------------
-Bank2_DecreasePlayerChips SUBROUTINE
-    clc                ; extra -1
-    lda PlayerChips+2
-    sbc Bank2_DenomValue,x
-    sta PlayerChips+2
-
-    lda PlayerChips+1
-    sbc #0
-    sta PlayerChips+1
-
-    lda PlayerChips
-    sbc #0
-    sta PlayerChips
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Give chips to the player.
-; Inputs:   X (index to Bank2_DenomValue)
-; Ouputs:
-; Notes:    BCD must be turned on.
-; -----------------------------------------------------------------------------
-Bank2_IncreasePlayerChips SUBROUTINE
-    sec                ; extra +1
-    lda PlayerChips+2
-    adc Bank2_DenomValue,x
-    sta PlayerChips+2
-
-    lda PlayerChips+1
-    adc #0
-    sta PlayerChips+1
-
-    lda PlayerChips
-    adc #0
-    sta PlayerChips
+.BadBet
+    cld
+    lda #-1
     rts
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Returns a pseudorandom card.
 ; Inputs:
-; Ouputs:   A (random card)
+; Outputs:   A (random card)
 ; -----------------------------------------------------------------------------
     IF TEST_RAND_ON == 2
 Bank2_DealCard SUBROUTINE
@@ -441,7 +466,7 @@ Bank2_DealCard SUBROUTINE
 
     ; check the discard pile
     lda DiscardPile,y                   ; A = the byte
-    and Bank2_Power2,x                  ; isolate the bit
+    and Bank2_Pow2,x                    ; isolate the bit
     beq .NotDiscarded
 
     lda Arg1
@@ -451,7 +476,7 @@ Bank2_DealCard SUBROUTINE
 
     ; mark the card as discarded
     lda DiscardPile,y                   ; load the byte
-    ora Bank2_Power2,x                  ; set the bit on
+    ora Bank2_Pow2,x                    ; set the bit on
     sta DiscardPile,y                   ; store the byte
 
     ; track how many cards have been dealt
@@ -509,7 +534,7 @@ Bank2_DealCard SUBROUTINE
     ; verify it's not already discarded
     jsr Bank2_FindDiscardPosition       ; input A; output X, Y
     lda DiscardPile,y                   ; A = the byte
-    and Bank2_Power2,x                  ; isolate the bit
+    and Bank2_Pow2,x                    ; isolate the bit
     beq .NotDiscarded
 
     ; the card has already been dealt
@@ -520,7 +545,7 @@ Bank2_DealCard SUBROUTINE
 
     ; mark the card as discarded
     lda DiscardPile,y                   ; load the byte
-    ora Bank2_Power2,x                  ; set the bit on
+    ora Bank2_Pow2,x                    ; set the bit on
     sta DiscardPile,y                   ; store the byte
 
     ; track how many cards have been dealt
@@ -622,7 +647,7 @@ NumDecksMask
 ; -----------------------------------------------------------------------------
 ; Desc:     Calculates the card's row and column position into DiscardPile
 ; Inputs:   A (the card)
-; Ouputs:   X (DiscardPile bit number: [0-7])
+; Outputs:   X (DiscardPile bit number: [0-7])
 ;           Y (DiscardPile byte offset: [0-25])
 ;
 ; TODO:     Make the subroutine work with 1 & 2 decks.
@@ -653,17 +678,10 @@ Bank2_FindDiscardPosition SUBROUTINE
 
     rts
 
-Bank2_DeckBits
-    dc.b #3
-    dc.b #7
-    dc.b #7
-    dc.b #7
-
+;Bank2_DeckBits
+;    dc.b 3, 7, 7, 7
 Bank2_DiscardBytes
-    dc.b #13
-    dc.b #13
-    dc.b #26
-    dc.b #26
+    dc.b 13, 13, 26, 26
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Searches the discard pile for the next available card.
@@ -693,7 +711,7 @@ Bank2_FindNextAvailableCard SUBROUTINE
     ; search for next available suit
 .NextCol
     lda DiscardPile,y
-    and Bank2_Power2,x
+    and Bank2_Pow2,x
     beq .Found
     dex
     bpl .NextCol
@@ -833,7 +851,7 @@ Bank2_FindNextAvailableCard SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Discards the card given in the A register.
 ; Inputs:   A (a card)
-; Ouputs:   Y (byte index into the DiscardPile)
+; Outputs:   Y (byte index into the DiscardPile)
 ; Notes:
 ;           Card = (deck) (suit) (rank)
 ;           bits =  7 6    5 4   3 2 1 0
@@ -846,7 +864,7 @@ Bank2_DiscardCard SUBROUTINE
 
     ; load the byte
     lda DiscardPile,y                   ; A = the byte
-    ora Bank2_Power2,x                  ; set the bit on
+    ora Bank2_Pow2,x                    ; set the bit on
     sta DiscardPile,y                   ; save the byte back
 
 .Return
@@ -856,7 +874,7 @@ Bank2_DiscardCard SUBROUTINE
 ; Desc:     Swaps the 1st ace out of the 1st card slot. No change if there are
 ;           two or more aces or no aces.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_DealerSwapAce SUBROUTINE
     lda PlayerCards+[DEALER_CARDS_OFFSET]
@@ -890,7 +908,7 @@ Bank2_PlayerSwapAce SUBROUTINE
     ldx CurrPlayer
 
     ; save ending position
-    ldy Bank2_Multiply6,x
+    ldy Bank2_Mult6,x
     tya
     clc
     adc #NUM_VISIBLE_CARDS
@@ -915,7 +933,7 @@ Bank2_PlayerSwapAce SUBROUTINE
     bne .Loop                           ; while Y != number of cards
 
     ; swap the first card with the 2nd
-    ldy Bank2_Multiply6,x
+    ldy Bank2_Mult6,x
     lda PlayerCards,y
     ldx PlayerCards+1,y
     sta PlayerCards+1,y
@@ -927,7 +945,7 @@ Bank2_PlayerSwapAce SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Remove the 1st card from the player's onscreen hand.
 ; Inputs:
-; Ouputs:   A (the unshifted card)
+; Outputs:   A (the unshifted card)
 ; -----------------------------------------------------------------------------
 Bank2_DealerShiftCard SUBROUTINE
     ldx PlayerCards+[DEALER_CARDS_OFFSET]
@@ -948,7 +966,7 @@ Bank2_DealerShiftCard SUBROUTINE
 Bank2_PlayerShiftCard SUBROUTINE
     ldx CurrPlayer
 
-    ldy Bank2_Multiply6,x                       ; Y = first card offset
+    ldy Bank2_Mult6,x                       ; Y = first card offset
     lda PlayerCards,y
     sta Arg2                                    ; Arg2 = first card
     tya
@@ -976,7 +994,7 @@ Bank2_PlayerShiftCard SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Computes the score of the selected hand.
 ; Inputs:   X (player index)
-; Ouputs:   A (the score)
+; Outputs:   A (the score)
 ;           Y (number of aces)
 ; -----------------------------------------------------------------------------
 Bank2_CalcHandScore SUBROUTINE
@@ -992,7 +1010,7 @@ Bank2_CalcHandScore SUBROUTINE
     lda PlayerPileScore,x
     sta Score
     inx                         ; X = next player
-    ldy Bank2_Multiply6,x       ; Y = last card offset + 1
+    ldy Bank2_Mult6,x       ; Y = last card offset + 1
                                 ; (or start of next player's hand)
     ; add up card scores
     lda #0
@@ -1012,7 +1030,7 @@ Bank2_CalcHandScore SUBROUTINE
     sta Score                   ; Y = total score so far
     tsx                         ; X = player index
     tya
-    cmp Bank2_Multiply6,x       ; if first card
+    cmp Bank2_Mult6,x       ; if first card
     bne .ScoreLoop
 
     ; if there's a bust, demote any aces until <21 or out of aces
@@ -1049,12 +1067,90 @@ Bank2_CalcHandScore SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Pay player winning chips.
 ; Inputs:   CurrPlayer
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
+#if 1
+Bank2_PayoutWinnings SUBROUTINE
+    ldx #0
+    ldy CurrPlayer
+
+    ; check for a win
+    lda PlayerFlags,y
+    and #FLAGS_BLACKJACK | FLAGS_WIN
+    beq .Skip1
+    inx         ; return original bet and payout winnings
+    inx
+.Skip1
+
+    ; check for doubledown win
+    lda PlayerFlags,y
+    and #FLAGS_WIN | FLAGS_DOUBLEDOWN_TAKEN
+    cmp #FLAGS_WIN | FLAGS_DOUBLEDOWN_TAKEN
+    bne .Skip2
+    inx         ; return original bet and payout winnings
+    inx
+.Skip2
+
+    ; check for doubledown push
+    lda PlayerFlags,y
+    and #FLAGS_PUSH | FLAGS_DOUBLEDOWN_TAKEN
+    cmp #FLAGS_PUSH | FLAGS_DOUBLEDOWN_TAKEN
+    bne .Skip3
+    inx         ; payout doubledown bet
+.Skip3
+
+    ; check for a push
+    and #FLAGS_PUSH
+    beq .Skip4
+    inx         ; return original bet
+.Skip4
+
+    ; check for insurance taken against dealer's blackjack
+    lda PlayerFlags,y
+    and #FLAGS_LOST | FLAGS_INSURANCE_TAKEN | FLAGS_BUST
+    ; player cannot bust
+    cmp #FLAGS_LOST | FLAGS_INSURANCE_TAKEN
+    bne .Skip5
+    lda #FLAGS_BLACKJACK
+    bit PlayerFlags+DEALER_IDX
+    beq .Skip5
+    inx
+.Skip5
+
+    cpx #0
+    beq .Return
+
+    sed
+    SET_POINTER TempPtr, PlayerChips
+    COPY_INT3 TempChips, CurrBet1
+    SET_POINTER TempPtr2, TempChips
+.DoPayouts
+    jsr Bank2_AddInt3
+    dex
+    bne .DoPayouts
+
+    ; payout additional 1/2 winnings on blackjack
+    lda PlayerFlags,x
+    and #FLAGS_BLACKJACK
+    beq .NoBlackjack
+    ; blackjack payout is 3:2, payout remaining 1/2 bet
+    jsr Bank2_Div2Int3
+    jsr Bank2_AddInt3
+
+.NoBlackjack
+    cld
+
+.Return
+    rts
+
+#else
 Bank2_PayoutWinnings SUBROUTINE
     sed
-
     ldx CurrPlayer
+
+    SET_POINTER TempPtr, PlayerChips
+    COPY_INT3 TempChips, CurrBet1
+    SET_POINTER TempPtr2, TempChips
 
     ; pay out player winnings or refund the bet on a push
 .CheckForBlackjack
@@ -1064,47 +1160,47 @@ Bank2_PayoutWinnings SUBROUTINE
 
     ; player has blackjack: payout 3:2
     ; pay out 1/2 now and the remainder below
-    jsr Bank2_CalcHalfBetChips
-    jsr Bank2_AddChips
-    ldy #2
-    jmp .Payout2
+    ; divide current bet by 2
+    jsr Bank2_Div2Int3
+    ; add half bet to player's chips
+    jsr Bank2_AddInt3
+
+    ldy #2      ; payout original bet plus winnings
+    jmp .DoPayout
 
 .CheckWin
     ldx CurrPlayer
-
     lda PlayerFlags,x
     and #FLAGS_WIN
     beq .CheckPush
 
     ; player has won: payout 2:1
-    ldy #2
-
+    ldy #2      ; payout original bet plus winnings
     ; check if there was a doubledown
     lda PlayerFlags,x
     and #FLAGS_DOUBLEDOWN_TAKEN
-    beq .Payout2
+    beq .DoPayout
 
-    ; player won double down: payout the 2nd bet
+    ; player won double down: double the payout
     iny
     iny
-    jmp .Payout2
+    jmp .DoPayout
 
 .CheckPush
     lda PlayerFlags,x
     and #FLAGS_PUSH
     beq .PlayerLost
 
-    ; player pushed: refund bet
-    ldy #1
-
+    ; player pushed
+    ldy #1      ; return original bet
     ; check if there was a doubledown
     lda PlayerFlags,x
     and #FLAGS_DOUBLEDOWN_TAKEN
-    beq .Payout2
+    beq .DoPayout
 
-    ; refund the double down bet
+    ; return the double down bet
     iny
-    jmp .Payout2
+    jmp .DoPayout
 
 .PlayerLost
     ; check if the player took insurance
@@ -1112,7 +1208,7 @@ Bank2_PayoutWinnings SUBROUTINE
     and #FLAGS_INSURANCE_TAKEN
     beq .Return
 
-    ; check for dealer blackjack
+    ; check if dealer had blackjack
     lda #FLAGS_BLACKJACK
     bit PlayerFlags+DEALER_IDX
     beq .Return
@@ -1121,198 +1217,28 @@ Bank2_PayoutWinnings SUBROUTINE
     lda PlayerFlags,x
     and #FLAGS_BUST
     bne .Return
-    ; player took insurance and dealer had blackjack
-    ; payout 2:1; payout = (1/2 * currbet) * 2
 
-.Payout1
-    ldy #1
-.Payout2
-.Continue
-    jsr Bank2_AddBetChips
-    dey
-    bne .Payout2
+    ; player took insurance and dealer had blackjack
+    ; payout 2:1; payout = 2 x (1/2 x current bet) = current bet
+    ldy #1      ; payout current bet
+
+.DoPayout
+    sty PayoutCtr
+    SET_POINTER TempPtr2, CurrBet1
+.PayoutLoop
+    jsr Bank2_AddInt3
+    dec PayoutCtr
+    bne .PayoutLoop
 
 .Return
     cld
     rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Calculates half the current bet in BCD.
-; Inputs:   CurrBet (BCD)
-; Ouputs:   Arg1, Arg2 (BCD)
-; Notes:
-;      3:2 payout = bet + (3 * bet / 2) = 2.5 x bet
-;      For each thousands, hundreds, tens places:
-;         treat digit as tens place (to keep the lookup table small: 20 elems)
-;         divide by 2 and add to running total
-;      One's and hundred's places are special cases.
-;
-;      Example: 2345 chips * 0.5
-;        2000 / 2 = 1000
-;      +  300 / 2 =  150
-;      +   40 / 2 =   20
-;      +    5 / 2 =    2
-;      -----------------
-;      =            1172
-;
-;      Example: 9999 chips * 0.5
-;        9000 / 2 = 4500
-;      +  900 / 2 =  450
-;      +   90 / 2 =   45
-;      +    9 / 2 =    4
-;      -----------------
-;      =            4999
-; -----------------------------------------------------------------------------
-;
-; $ff = 1111 1111 
-;     = 0 1001 1001 = $099
-;       x 2
-;     = 1 0011 0010 = $132
-;
-; -----------------------------------------------------------------------------
-Bank2_CalcHalfBetChips SUBROUTINE
-    lda #0
-    sta Arg1
-    sta Arg2
-
-    clc
-
-    ; one's place
-    lda CurrBet+1
-    and #$0F                               ; retrieve low digit tay
-    tay
-    lda Bank2_BcdOnesDivide2,y             ; divide by 2
-    sta Arg2
-
-    ; ten's place
-    lda CurrBet+1
-    and #$F0                               ; retrieve high digit
-    lsr
-    lsr
-    lsr
-    lsr                                    ; high digit / 10
-    tay
-    lda Bank2_BcdTensDivide2,y             ; divide by 2
-    adc Arg2
-    sta Arg2
-
-    ; hundred's place
-    ; special case: the result digits are split across the nibbles
-    lda CurrBet
-    and #$0F                               ; retrieve low digit
-    tay
-    lda Bank2_BcdTensDivide2,y             ; add in portion spilled into next nibble
-    and #$0F                               ; retrieve low digit
-    asl
-    asl
-    asl
-    asl
-    adc Arg2
-    sta Arg2
-
-    lda CurrBet
-    and #$0F                               ; retrieve low digit
-    tay
-    lda Bank2_BcdTensDivide2,y             ; divide by 2
-    and #$F0                               ; retrieve high digit
-    lsr
-    lsr
-    lsr
-    lsr                                    ; high digit = 100's
-    adc Arg1
-    sta Arg1
-
-    ; thousand's place
-    lda CurrBet
-    and #$F0                               ; retrieve high digit
-    lsr
-    lsr
-    lsr
-    lsr                                    ; high digit / 10
-    tay
-    lda Bank2_BcdTensDivide2,y             ; divide by 2
-    adc Arg1
-    sta Arg1
-
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Adds CurrBet chips to player's chips. Decimal mode must be set before calling.
-; Inputs:   CurrBet (MSB, LSB)
-; Ouputs:       
-; -----------------------------------------------------------------------------
-Bank2_AddBetChips SUBROUTINE
-    clc
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    adc CurrBet+1
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    adc CurrBet
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET
-    adc #0
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Subtracts CurrBet chips from player's chips. Decimal mode must be set before calling.
-; Inputs:   CurrBet (MSB, LSB)
-; Ouputs:       
-; -----------------------------------------------------------------------------
-Bank2_SubtractBetChips SUBROUTINE
-    sec
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    sbc CurrBet+1
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    sbc CurrBet
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET
-    sbc #0
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Adds chips to player's chips. Decimal mode must be set before calling.
-; Inputs:   Arg1 (MSB), Arg2 (LSB)
-; Ouputs:       
-; -----------------------------------------------------------------------------
-Bank2_AddChips SUBROUTINE
-    ; additions above can't overflow, but additions below can.
-    clc
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    adc Arg2
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    adc Arg1
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET
-    adc #0
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Subtracts chips from player's chips. Decimal mode must be set before calling.
-; Inputs:   Arg1 (MSB), Arg2 (LSB)
-; Ouputs:       
-; -----------------------------------------------------------------------------
-Bank2_SubtractChips SUBROUTINE
-    sec
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    sbc Arg2
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+2
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    sbc Arg1
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET+1
-    lda PlayerChips+PLAYER1_CHIPS_OFFSET
-    sbc #0
-    sta PlayerChips+PLAYER1_CHIPS_OFFSET
-    rts
+#endif
 
 ; -----------------------------------------------------------------------------
 ; Desc;     Check user input for dashboard navigation.
 ; Inputs:        
-; Ouputs:       
+; Outputs:       
 ; -----------------------------------------------------------------------------
 Bank2_DashboardNavigate SUBROUTINE
 .CheckRight
@@ -1372,7 +1298,7 @@ Bank2_DashboardNavigate SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc;     Animates the current card for the given player.
 ; Inputs:   X register (player id)
-; Ouputs:       
+; Outputs:       
 ; -----------------------------------------------------------------------------
 Bank2_AnimateCard SUBROUTINE
     txa
@@ -1402,14 +1328,14 @@ DoNothing SUBROUTINE
 ; Desc:     Deal a card to the current player. Performing the deal as a task
 ;   
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 DoDealCard SUBROUTINE
     jsr Bank2_DealCard
     tay                             ; Y = new card
     clc
     ldx CurrPlayer                  ; X = player index
-    lda Bank2_Multiply6,x           ; A = starting card offset
+    lda Bank2_Mult6,x           ; A = starting card offset
     adc PlayerNumCards,x            ; A = next card offset
     tax                             ; X = next card offset
     sty PlayerCards,x
@@ -1433,7 +1359,7 @@ DoDealCard SUBROUTINE
 ;           itself from task work when the animation completes. The player
 ;           is paused during the animation.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 DoFlipCard SUBROUTINE
     ; check if there are animations
@@ -1445,14 +1371,9 @@ DoFlipCard SUBROUTINE
     dex
     bpl .Loop
 
-FlipDone
     ; animation done; disable task
-    ;lda #TSK_NONE
-    ;ldy #TSK_FLIP_CARD
-    ;jsr QueueReplace
     lda #TSK_FLIP_CARD
     jsr QueueRemove
-    
     rts
 
     ; advance animation frame
@@ -1468,7 +1389,7 @@ FlipDone
 ; Desc:     Virtually shuffles the shoe by emptying the discard pile. Resets
 ;           TaskQueue state upon completion.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 DoShuffle SUBROUTINE
     lda #TSK_NONE
@@ -1501,7 +1422,7 @@ DoShuffle SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Adds the dealer's current hand to the discard pile.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 DoDealerDiscard SUBROUTINE
     lda #TSK_NONE
@@ -1530,7 +1451,7 @@ DoPlayer1Discard SUBROUTINE
     jsr QueueReplace
 
     ldx #PLAYER1_IDX
-    lda Bank2_Multiply6,x
+    lda Bank2_Mult6,x
     tay                                 ; Y = start offset
     sta Arg1                            ; Arg1 = start offset
     clc
@@ -1546,7 +1467,7 @@ DoPlayer1Discard SUBROUTINE
     jsr Bank2_FindDiscardPosition
     ; load the byte
     lda DiscardPile,y                   ; A = the byte
-    ora Bank2_Power2,x                  ; set the bit on
+    ora Bank2_Pow2,x                    ; set the bit on
     sta DiscardPile,y                   ; save the byte back
 .Skip
     inc Arg1
@@ -1563,7 +1484,7 @@ DoPlayer2Discard SUBROUTINE
     jsr QueueReplace
 
     ldx #PLAYER2_IDX
-    lda Bank2_Multiply6,x
+    lda Bank2_Mult6,x
     tay                                 ; Y = start offset
     sta Arg1                            ; Arg1 = start offset
     clc
@@ -1579,7 +1500,7 @@ DoPlayer2Discard SUBROUTINE
     jsr Bank2_FindDiscardPosition
     ; load the byte
     lda DiscardPile,y                   ; A = the byte
-    ora Bank2_Power2,x                  ; set the bit on
+    ora Bank2_Pow2,x                    ; set the bit on
     sta DiscardPile,y                   ; save the byte back
 .Skip
     inc Arg1
@@ -1595,7 +1516,7 @@ DoPlayer2Discard SUBROUTINE
 ;           itself from task work when the animation completes. The player
 ;           is paused during the animation.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 ; TSK_RANDOM_NUM
 DoPreRandom SUBROUTINE
@@ -1608,7 +1529,7 @@ DoPreRandom SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Runs a short animation on player winning the hand.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 DoBlackJackAnim SUBROUTINE
     ; check if there are animations
@@ -1790,19 +1711,30 @@ WaitPlayerBet SUBROUTINE
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
 
 .Return
-    ;jsr Bank2_ClearEvents
     cld
     rts
 
 ; decreases bet by currently selected denomination
 ActionPlayerBetDown SUBROUTINE
-    sed
+    ; assign pointers
+    SET_POINTER TempPtr, CurrBet1
     jsr Bank2_GetBetMenu
     tax
-    jsr Bank2_CheckCanReturnChips
-    beq .Return
-    jsr Bank2_DecreaseBet
-    jsr Bank2_IncreasePlayerChips
+    cld
+    SET_DENOM_PTR TempPtr2              ; TempPtr2 = &DenomValue[x]
+
+    ; compare TempPtr and TempPtr2; prevent if curr bet > denom value
+    sed
+    jsr Bank2_CompareInt3
+    bmi .Return
+
+    ; decrease current bet by the selected denomination value
+    sed
+    jsr Bank2_SubInt3
+
+    ; increase player chips by the same amount
+    SET_POINTER TempPtr, PlayerChips
+    jsr Bank2_AddInt3
 
 .Return
     cld
@@ -1812,23 +1744,26 @@ ActionPlayerBetDown SUBROUTINE
 
 ; increases bet by currently selected denomination
 ActionPlayerBetUp SUBROUTINE
-    sed
+    ; assign pointers
+    SET_POINTER TempPtr, PlayerChips
     jsr Bank2_GetBetMenu
     tax
-    jsr Bank2_IncreaseBet
-    lda #0
-    sta Arg1
-    lda Bank2_DenomValue,x
-    sta Arg2
-    jsr Bank2_PlayerHasEnoughChips
-    bne .AllowBet
+    cld
+    SET_DENOM_PTR TempPtr2              ; TempPtr2 = &DenomValue[x]
 
-    ; player does not have enough chips; restore CurrBet to previous value
-    jsr Bank2_DecreaseBet
-    jmp .Return
+    ; compare TempPtr and TempPtr2; prevent if PlayerChips < denom value
+    sed
+    jsr Bank2_CompareInt3
+    bmi .Return
 
-.AllowBet
-    jsr Bank2_DecreasePlayerChips
+    ; decrease player's chips by the selected denomination value
+    sed
+    jsr Bank2_SubInt3
+
+    ; increase current bet by the same amount
+    SET_POINTER TempPtr, CurrBet1
+    jsr Bank2_AddInt3
+
 .Return
     cld
     lda #GS_PLAYER_BET
@@ -1841,7 +1776,7 @@ ActionPlayerBetUp SUBROUTINE
 ;           frames. DealCard is computationally expensive when the discard pile
 ;           is filled up.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 ActionOpenDeal1 SUBROUTINE
     lda #DEALER_IDX
@@ -2032,7 +1967,7 @@ ActionPlayerSetFlags SUBROUTINE
     ; player has not split; check there are 2 equivalently valued cards
 
     ; look up 1st card
-    ldy Bank2_Multiply6,x
+    ldy Bank2_Mult6,x
     lda PlayerCards,y
     and #CARD_RANK_MASK
     tay
@@ -2040,7 +1975,7 @@ ActionPlayerSetFlags SUBROUTINE
     sta Arg1                        ; Arg1 = 1st card
 
     ; lookup 2nd card
-    ldy Bank2_Multiply6,x
+    ldy Bank2_Mult6,x
     lda PlayerCards+1,y
     and #CARD_RANK_MASK
     tay
@@ -2299,8 +2234,11 @@ WaitPlayerSurrender SUBROUTINE
 
     ; pay back 1/2 the bet chips
     sed
-    jsr Bank2_CalcHalfBetChips
-    jsr Bank2_AddChips
+    COPY_INT3 TempChips, CurrBet1
+    SET_POINTER TempPtr2, TempChips
+    jsr Bank2_Div2Int3
+    SET_POINTER TempPtr, PlayerChips
+    jsr Bank2_AddInt3
     cld
 
     ; check if surrendering the split hand or main hand
@@ -2343,21 +2281,13 @@ WaitPlayerDoubleDown SUBROUTINE
     bit GameFlags
     beq .NotAllowed
 
-    ; check if player has enough chips
-    lda CurrBet
-    sta Arg1
-    lda CurrBet+1
-    sta Arg2
-
-    jsr Bank2_PlayerHasEnoughChips
-    beq .NotAllowed
-
+    cld
     lda #SOUND_ID_DOUBLEDOWN
     sta Arg1
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
 
-    ; player has enough chips
     jsr Bank2_ApplyCurrBet
+    bmi .NotAllowed
 
     ldx CurrPlayer
 
@@ -2380,6 +2310,8 @@ WaitPlayerDoubleDown SUBROUTINE
     jmp .Return
 
 .NotAllowed
+    ; player does not have enough chips
+    cld
     lda #SOUND_ID_ERROR
     sta Arg1
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
@@ -2389,7 +2321,6 @@ WaitPlayerDoubleDown SUBROUTINE
     jsr Bank2_DashboardNavigate
 
 .Return
-    ;jsr Bank2_ClearEvents
     rts
 
 WaitPlayerInsurance SUBROUTINE
@@ -2403,14 +2334,18 @@ WaitPlayerInsurance SUBROUTINE
     bit GameFlags
     beq .NotAllowed
 
-    ; fixing insurance bet to 1/2 current bet
     sed
-    jsr Bank2_CalcHalfBetChips
-    jsr Bank2_PlayerHasEnoughChips
-    beq .NotAllowed
-    jsr Bank2_SubtractChips
-    cld
+    ; insurance bet is fixed to 1/2 current bet
+    COPY_INT3 TempChips, CurrBet1
+    SET_POINTER TempPtr2, TempChips
+    jsr Bank2_Div2Int3
+    SET_POINTER TempPtr, PlayerChips
+    jsr Bank2_CompareInt3
 
+    bmi .NotAllowed
+    jsr Bank2_SubInt3
+
+    cld
     lda #SOUND_ID_INSURANCE
     sta Arg1
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
@@ -2446,7 +2381,6 @@ WaitPlayerInsurance SUBROUTINE
     jsr Bank2_DashboardNavigate
 
 .Return
-    ;jsr Bank2_ClearEvents
     rts
 
 WaitPlayerSplit SUBROUTINE
@@ -2461,29 +2395,23 @@ WaitPlayerSplit SUBROUTINE
     bit GameFlags
     beq .NotAllowed
 
-    ; check if player has enough chips
-    lda CurrBet
-    sta Arg1
-    lda CurrBet+1
-    sta Arg2
-
-    jsr Bank2_PlayerHasEnoughChips
-    bne .Allowed
-
-.NotAllowed
-    lda #SOUND_ID_ERROR
-    sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
-    jmp .Return
-
-.Allowed
+    cld
     lda #SOUND_ID_SPLIT
     sta Arg1
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
 
     ; player has enough chips
     jsr Bank2_ApplyCurrBet
+    beq .BetOkay
 
+.NotAllowed
+    cld
+    lda #SOUND_ID_ERROR
+    sta Arg1
+    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    jmp .Return
+
+.BetOkay
     lda GameFlags
     ; flag as split
     ora #FLAGS_SPLIT_TAKEN
@@ -2546,7 +2474,6 @@ WaitPlayerSplit SUBROUTINE
     jsr Bank2_DashboardNavigate
 
 .Return
-    ;jsr Bank2_ClearEvents
     rts
 
 ActionPlayerSplitDeal SUBROUTINE
@@ -2901,21 +2828,17 @@ ActionGameOver SUBROUTINE
 .PlaySound
     
 .Return
-    lda #1
-    sta TriggerTimer
+    lda #INPUT_DELAY
+    sta InputTimer
     lda #GS_INTERMISSION
     sta GameState
     rts
 
 WaitIntermission SUBROUTINE
     ; block trigger input for a duration
-    inc TriggerTimer
-    lda TriggerTimer
-    beq .CheckFire
-    cmp #TGR_TIMER
-    bcc .CheckSplit
+    ldx InputTimer
+    bne .Timer
 
-.CheckFire
     lda #JOY_FIRE_PACKED_MASK
     bit JoyRelease
     bne .NewGame
@@ -2926,8 +2849,7 @@ WaitIntermission SUBROUTINE
     bit GameFlags
     beq .Return
 
-    ; player split the hand; allow highlighting current hand
-.CheckUp
+    ; player split the hand; allow highlighting current hand .CheckUp
     lda #JOY0_UP_MASK
     bit JoyRelease
     beq .CheckDown
@@ -2951,15 +2873,30 @@ WaitIntermission SUBROUTINE
     lda #GS_NEW_GAME
     sta GameState
     jsr Bank2_ApplyCurrBet
+    beq .Return
+    ; not enough chips, go all in
+    COPY_INT3 CurrBet1, PlayerChips
+    lda #0
+    sta PlayerChips
+    sta PlayerChips+1
+    sta PlayerChips+2
 
 .Return
-    ;jsr Bank2_ClearEvents
+    rts
+
+.Timer
+    dex
+    stx InputTimer
+    rts
+
+WaitBrokeBank1 SUBROUTINE
+WaitBrokeBank2 SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Returns a pseudo-random number in the A register
 ; Inputs:
-; Ouputs:   A       (random number)
+; Outputs:   A       (random number)
 ;           RandNum (random number)
 ; -----------------------------------------------------------------------------
     IF TEST_RAND_ON == 1
@@ -2996,7 +2933,7 @@ Bank2_GetRandomByte SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets sprite spacing gaps.
 ; Inputs:   Y register (sprite index)
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_InitSpriteSpacing SUBROUTINE
     lda Bank2_SpriteSize,y
@@ -3010,7 +2947,7 @@ Bank2_InitSpriteSpacing SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets the sprite pointers to blank sprites.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_GameClearSprites SUBROUTINE
     ; assign to blank sprites
@@ -3028,7 +2965,7 @@ Bank2_GameClearSprites SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Erases any pending joystick events.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_ClearEvents SUBROUTINE
     lda #0
@@ -3038,7 +2975,7 @@ Bank2_ClearEvents SUBROUTINE
 ; -----------------------------------------------------------------------------
 ; Desc:     Erases game memory.
 ; Inputs:
-; Ouputs:
+; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_ResetGame
     ; clear memory
@@ -3106,12 +3043,24 @@ Bank2_CardPointValue
     ;     -   A  2  3  4  5  6  7  8  9  10  J   Q   K   -  -
     dc.b $0, $11, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $10, $10, $0, $0
 
+#if 1
 ; These must be BCD values. 1 is added for the actual value.
 Bank2_DenomValue 
-    ;dc.b  $0, $4, $9, $24, $49, $99
-    dc.b  $0, $9, $24, $99, $99, $99
+    dc.b $00, $00, $01
+    dc.b $00, $00, $10
+    dc.b $00, $00, $25
+    dc.b $00, $01, $00
+    dc.b $00, $10, $00
+    dc.b $01, $00, $00
+
+#else
+; These must be BCD values. 1 is added for the actual value.
+Bank2_DenomValue 
+    ;dc.b $0, $4, $9, $24, $49, $99
+    dc.b $0, $9, $24, $99, $99, $99
 Bank2_DenomValue2
-    dc.b  $0, $0, $0, $0, $10, $0
+    dc.b $0, $0, $0, $0, $10, $0
+#endif
 
     IF BALLAST_ON == 1
         ; ballast code
@@ -3130,7 +3079,7 @@ Bank2_DenomValue2
     include "sys/bank2_palette.asm"
 
 ; Indexed by game state values.
-; bit 7:        show betting row
+; bit 7:        (unused)
 ; bit 6:        show dashboard
 ; bit 5:        show dealer's hole card
 ; bit 4:        show dealer's score
@@ -3138,10 +3087,10 @@ Bank2_DenomValue2
 ; bit 0,1,2:    index into PromptMessages table
 Bank2_GameStateFlags
     dc.b 0                      ; GS_TITLE_SCREEN
-    dc.b %10101001              ; GS_NEW_GAME
-    dc.b %10001001              ; GS_PLAYER_BET
-    dc.b %10001001              ; GS_PLAYER_BET_DOWN
-    dc.b %10001001              ; GS_PLAYER_BET_UP
+    dc.b %00101001              ; GS_NEW_GAME
+    dc.b %00001001              ; GS_PLAYER_BET
+    dc.b %00001001              ; GS_PLAYER_BET_DOWN
+    dc.b %00001001              ; GS_PLAYER_BET_UP
     dc.b %01000000              ; GS_OPEN_DEAL1
     dc.b %01000000              ; GS_OPEN_DEAL2
     dc.b %01000000              ; GS_OPEN_DEAL3
@@ -3170,6 +3119,8 @@ Bank2_GameStateFlags
     dc.b %00110000              ; GS_DEALER_HAND_OVER
     dc.b %00110000              ; GS_GAME_OVER
     dc.b %00110000              ; GS_INTERMISSION
+    dc.b %00110000              ; GS_BROKE_BANK1
+    dc.b %00110000              ; GS_BROKE_BANK2
 
 ; Game state handlers implement the core game mechanics.
 ;   Action handlers execute for one frame.
@@ -3217,6 +3168,8 @@ Bank2_GameStateHandlers
     ; game over
     dc.w ActionGameOver         ; GS_GAME_OVER
     dc.w WaitIntermission       ; GS_INTERMISSION
+    dc.w WaitBrokeBank1         ; GS_BROKE_BANK1
+    dc.w WaitBrokeBank2         ; GS_BROKE_BANK2
 
 ; Tasks are prioritized and momentarily interrupt the game play
 Bank2_TaskHandlers
@@ -3254,6 +3207,7 @@ PROC_SOUNDQUEUEPLAY         = 5
 PROC_SOUNDQUEUEPLAY2        = 6
 PROC_SOUNDQUEUETICK         = 7
 PROC_BANK0_READKEYPAD       = 8
+PROC_BANK1_DEPARTKERNEL     = 9
 
 Bank2_ProcTableLo
     dc.b <AnimationAdd
@@ -3265,6 +3219,7 @@ Bank2_ProcTableLo
     dc.b <SoundQueuePlay2
     dc.b <SoundQueueTick
     dc.b <Bank0_ReadKeypad
+    dc.b <Bank1_DepartKernel
 
 Bank2_ProcTableHi
     dc.b >AnimationAdd
@@ -3276,6 +3231,22 @@ Bank2_ProcTableHi
     dc.b >SoundQueuePlay2
     dc.b >SoundQueueTick
     dc.b >Bank0_ReadKeypad
+    dc.b >Bank1_DepartKernel
+
+; Map game state to a kernel subroutine:
+; GameState -> { ProcTable index, bank number }
+Bank2_KernelKey
+    dc.b GS_NEW_GAME, GS_PLAYER_BET, GS_PLAYER_BET_DOWN, GS_PLAYER_BET_UP
+    dc.b GS_BROKE_BANK1, GS_BROKE_BANK2
+    dc.b 0
+Bank2_KernelProc
+    ds.b 4, PROC_BANK0_BETTINGKERNEL
+    ds.b 2, PROC_BANK1_DEPARTKERNEL
+    ds.b 1, PROC_BANK3_PLAYKERNEL
+Bank2_KernelBank
+    ds.b 4, 0
+    ds.b 2, 1
+    ds.b 1, 3
 
     ORG BANK2_ORG + $ff6-BS_SIZEOF
     RORG BANK2_RORG + $ff6-BS_SIZEOF

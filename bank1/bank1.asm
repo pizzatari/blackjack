@@ -45,8 +45,8 @@ Bank1_Reset
 
 Bank1_Init
     ; joystick delay
-    lda #JOY_TIMER_DELAY
-    sta JoyTimer
+    lda #INPUT_DELAY
+    sta InputTimer
 
     lda #ATMOS_HEIGHT-1
     sta AtmosHeight
@@ -73,12 +73,12 @@ Bank1_Init
     jsr Bank1_HorizPosition
 
     ; position player 1
-    ldx #P1_OBJ
+    ldx #OBJ_P1
     lda #151
     jsr Bank1_HorizPosition
 
     ; position door
-    ldx #M1_OBJ
+    ldx #OBJ_M1
     lda #151
     jsr Bank1_HorizPosition
 
@@ -200,6 +200,9 @@ Bank1_LandingKernel SUBROUTINE
     sta PF2
     sta GRP0
     sta GRP1
+    rts
+
+Bank1_DepartKernel SUBROUTINE
     rts
 
 ; variable height
@@ -411,27 +414,27 @@ Bank1_Overscan SUBROUTINE
     jsr Bank1_ReadSwitches
 
     ; update joystick timer
-    ldx JoyTimer
+    ldx InputTimer
     bne .DecReturn
     jsr Bank1_ReadJoystick
     rts
 .DecReturn
     dex
-    stx JoyTimer
+    stx InputTimer
     rts
 
 #if 0
     ; update joystick timer
-    ldx JoyTimer
+    ldx InputTimer
     beq .NoUpdate
     dex
-    stx JoyTimer
+    stx InputTimer
 .NoUpdate
 
     ; joystick delay
-    lda JoyTimer
+    lda InputTimer
     beq .DoJoystick
-    cmp #JOY_TIMER_DELAY
+    cmp #INPUT_DELAY
     bcc .SkipJoystick
 .DoJoystick
     jsr Bank1_ReadJoystick

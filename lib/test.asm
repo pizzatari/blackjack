@@ -21,7 +21,7 @@ NUM_TEST_RAND SET * - TestRandInts
 TestCards
     ; player & dealer have blackjack
 
-    dc.b $01, $71, $3a, $9a
+    dc.b $01, $71, $38, $9a
 
     dc.b $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d
     dc.b $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d, $8d

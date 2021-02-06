@@ -1,10 +1,10 @@
 Bank0_Dollar
-	dc.b %00001000
-	dc.b %00011100
+	dc.b %00000100
+	dc.b %00001110
+	dc.b %00000110
 	dc.b %00001100
-	dc.b %00011000
-	dc.b %00011100
-	dc.b %00001000
+	dc.b %00001110
+	dc.b %00000100
 Bank0_Digit0
 	dc.b %00000000
 	dc.b %00001110
@@ -12,6 +12,7 @@ Bank0_Digit0
 	dc.b %00001010
 	dc.b %00001010
 	dc.b %00001110
+DIGIT_HEIGHT = * - Bank0_Digit0
 Bank0_Digit1
 	dc.b %00000000
 	dc.b %00000100

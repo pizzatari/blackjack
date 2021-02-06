@@ -1,6 +1,10 @@
 TODO List
 ---------
 
+Tasks:
+    * Verify 1 & 2 decks are workin correctly for card dealing,
+      next card search, and discarding.
+
 Bugs:
     * No double down option given on 2nd split hand (P0). The option
       was offered and taken on 1st split hand (P1).

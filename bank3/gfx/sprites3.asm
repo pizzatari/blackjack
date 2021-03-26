@@ -40,9 +40,9 @@ Dashboard
 Dashboard0
     dc.b %00000000
     dc.b %00000101
-    dc.b %00000101
-    dc.b %11100111
-    dc.b %00000101
+    dc.b %01110101
+    dc.b %00000111
+    dc.b %11110101
     dc.b %00000101
 Dashboard1
     dc.b %00000000
@@ -75,19 +75,14 @@ Dashboard4
 Dashboard5
     dc.b %00000000
     dc.b %00000000
+    dc.b %01110000
     dc.b %00000000
-    dc.b %00111000
+    dc.b %01111000
     dc.b %00000000
-
-Bank3_Checkerboard
-Bank3_Checkerboard0
-Bank3_Checkerboard1
-Bank3_Checkerboard2
-Bank3_Checkerboard3
-Bank3_Checkerboard4
-Bank3_Checkerboard5
-    dc.b %00000000
-    dc.b %10101010
-    dc.b %01010101
-    dc.b %10101010
-    dc.b %00000000
+DashboardInsurance
+    dc.b %00111110
+    dc.b %00100010
+    dc.b %00110110
+    dc.b %00110110
+    dc.b %00100010
+    dc.b %00111110

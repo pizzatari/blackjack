@@ -7,3 +7,4 @@
 *.pf text=crlf
 *.sp text=crlf
 *.s text=crlf
+*.sprite text=crlf

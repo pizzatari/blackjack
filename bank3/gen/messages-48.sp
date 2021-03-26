@@ -163,50 +163,50 @@ Bank3_PushSprite4 SET Bank3_BlankMessage
 Bank3_PushSprite5 SET Bank3_BlankMessage
 Bank3_DealerWinsSprite
 Bank3_DealerWinsSprite0
-	dc.b %01111001
-	dc.b %01101101
-	dc.b %01100101
-	dc.b %01100100
-	dc.b %01100100
-	dc.b %01101100
-	dc.b %01111000
+	dc.b %11110011
+	dc.b %11011011
+	dc.b %11001010
+	dc.b %11001001
+	dc.b %11001000
+	dc.b %11011000
+	dc.b %11110000
 Bank3_DealerWinsSprite1
-	dc.b %11101101
-	dc.b %10001011
-	dc.b %01101011
-	dc.b %11100110
+	dc.b %11011010
+	dc.b %00010110
+	dc.b %11010110
+	dc.b %11001100
 	dc.b %00000000
 	dc.b %00000000
 	dc.b %00000000
 Bank3_DealerWinsSprite2
-	dc.b %01011110
-	dc.b %01011000
-	dc.b %01010110
-	dc.b %01001110
-	dc.b %01000000
-	dc.b %01000000
+	dc.b %10111101
+	dc.b %10110001
+	dc.b %10101101
+	dc.b %10011101
+	dc.b %10000000
+	dc.b %10000000
 	dc.b %00000000
 Bank3_DealerWinsSprite3
-	dc.b %10000111
-	dc.b %10000111
-	dc.b %10000110
-	dc.b %11100110
-	dc.b %00000110
-	dc.b %00000110
-	dc.b %00000110
+	dc.b %00001110
+	dc.b %00001111
+	dc.b %00001101
+	dc.b %11001100
+	dc.b %00001100
+	dc.b %00001100
+	dc.b %00001100
 Bank3_DealerWinsSprite4
-	dc.b %00110101
-	dc.b %11110101
-	dc.b %11010101
-	dc.b %00010001
-	dc.b %00010100
-	dc.b %00010000
-	dc.b %00010000
-Bank3_DealerWinsSprite5
-	dc.b %00101110
+	dc.b %01101010
+	dc.b %11101010
+	dc.b %10101011
 	dc.b %00100010
-	dc.b %10101100
-	dc.b %01101110
+	dc.b %00101000
+	dc.b %00100000
+	dc.b %00100000
+Bank3_DealerWinsSprite5
+	dc.b %01011100
+	dc.b %01000100
+	dc.b %01011000
+	dc.b %11011100
 	dc.b %00000000
 	dc.b %00000000
 	dc.b %00000000

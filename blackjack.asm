@@ -31,6 +31,14 @@
 ;   | Bot section:       Status bar      |
 ;   --------------------------------------
 ;
+; Landing & take off screen sections:
+;   --------------------------------------
+;   | Atmsophere                         |
+;   | Background Hills                          |
+;   |                                    |
+;   |                                    |
+;   --------------------------------------
+;
 ; Game screen sections:
 ;   --------------------------------------
 ;   | Top section:       Message bar     |
@@ -90,15 +98,6 @@ TEST_TIMING_ON              = 0
 TEST_STACK_DEBUG            = 0
 
 FILLER_CHAR                 = $4f ; $ea
-BALLAST_ON                  = 0
-
-    IFCONST AFP_TARGET
-        IF AFP_TARGET != 0
-BALLAST_ON                  = 1
-        ELSE
-BALLAST_ON                  = 0
-        ENDIF
-    ENDIF
 
 ; offscreen timings
 TIME_VBLANK                 = 37*76/64  ; TIM64T (43.9375)
@@ -346,8 +345,7 @@ TaskArg                     ds.b 2
 ARG_POPUP_OPEN              = POPUP_HEIGHT
 
 ; Current bet amount: BCD (big endian): [MSB, LSB]
-CurrBet1                    ds.b 3
-CurrBet                     = CurrBet1+1
+CurrBet                    ds.b 3
 ; Currently selected player
 CurrPlayer                  ds.b 1
 
@@ -470,10 +468,10 @@ Arg2                        ds.b 1
 ; Variables temporary to subroutines
 ; -----------------------------------------------------------------------------
 TempVars
-    ECHO "TempVars = ", TempVars
+    ECHO "TempVars =", TempVars
 
 MemBlockEnd
-    ECHO "MemBlockEnd = ", MemBlockEnd
+    ECHO "MemBlockEnd =", MemBlockEnd
 
     RAM_BYTES_USAGE
 

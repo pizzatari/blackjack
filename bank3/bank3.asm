@@ -40,10 +40,10 @@ Bank3_Reset
     bit BANK0_HOTSPOT
 
 Bank3_PlayKernel SUBROUTINE
-    lda #7*76/64
+    lda #15*76/64
     sta TIM64T
 
-#if PIP_COLORS
+#if 0 ; PIP_COLORS
     ; position ball
     lda #69
     ldx #4
@@ -91,20 +91,22 @@ Bank3_PlayKernel SUBROUTINE
     jsr Bank3_SetupMessageBar
     TIMER_WAIT      ; Wait for vertical blank to finish
 
-    ; Top text message row ----------------------------------------------------
+    ; Top dashboard rows -----------------------------------------------------
     lda #MSG_ROW_HEIGHT*76/64
     sta TIM64T
 
+    ; draw 1st dashboard row
     ldy #OPT_BAR_IDX
     jsr Bank3_SetColors
     jsr Bank3_SetupDashboardMask
-    ; draw 1st dashboard row
     ldy #MESSAGE_TEXT_HEIGHT-1
     jsr Bank3_DrawMessageBar
+
     ; draw 2nd dashboard row
     jsr Bank3_SetupDashboard
     ldy #DASHOPTS_HEIGHT-1
     jsr Bank3_DrawMessageBar
+
     TIMER_WAIT
 
     ; Dealer cards row --------------------------------------------------------
@@ -153,8 +155,9 @@ Bank3_PlayKernel SUBROUTINE
     jsr Bank3_RenderCardSprites
 
     lda #0
-    ;sta GRP0
-    ;sta GRP1
+    sta GRP0
+    sta GRP1
+    sta GRP0
     sta VDELP0
     sta VDELP1
 
@@ -516,6 +519,7 @@ Bank3_SetupPromptBar SUBROUTINE
 Bank3_SetupDashboardMask SUBROUTINE
     ; turn off all dashboard menus: 1 is off, 0 is on
     lda #%11111111  ; graphics: I, Sp
+    ;lda #%11001111  ; graphics: I, Sp
     sta PF0Bits
     lda #%11110000  ; graphics: left arrow, D, Su
     sta PF2Bits
@@ -524,15 +528,26 @@ Bank3_SetupDashboardMask SUBROUTINE
     lda #FLAGS_DOUBLEDOWN_ALLOWED|FLAGS_SURRENDER_ALLOWED
     bit GameFlags
     beq .CheckInsurance
-    ; turn on double down and surrender
+    ; turn on double down and surrender icons
     lda #0
     sta PF2Bits
 
 .CheckInsurance
     lda #FLAGS_INSURANCE_ALLOWED
     bit GameFlags
+    beq .CheckInsTaken
+    ; turn on insurance icon
+    lda #%11000000
+    and PF0Bits
+    sta PF0Bits
+
+.CheckInsTaken
+    ; if insurance taken, inverse the icon
+    ldx CurrPlayer
+    lda #FLAGS_INSURANCE_TAKEN
+    and PlayerFlags,x
     beq .CheckSplit
-    ; turn on insurance
+    ; turn on insurance icon
     lda #%11000000
     and PF0Bits
     sta PF0Bits
@@ -541,7 +556,7 @@ Bank3_SetupDashboardMask SUBROUTINE
     lda #FLAGS_SPLIT_ALLOWED
     bit GameFlags
     beq .Continue
-    ; turn on split
+    ; turn on split icon
     lda #%00110000
     and PF0Bits
     sta PF0Bits
@@ -553,7 +568,9 @@ Bank3_SetupDashboard SUBROUTINE
     ldx GameState
     lda Bank3_GameStateFlags,x
     and #GS_SHOW_DASHBOARD_FLAG
-    beq .ShowCheckboard
+    beq .ShowOptions
+
+    ; displays play menu on the game screen
 
     ; raise playfield priority to conceal menu items
     lda #%00000100
@@ -583,10 +600,22 @@ Bank3_SetupDashboard SUBROUTINE
     sta SpritePtrs+8
     lda #<Dashboard5
     sta SpritePtrs+10
+
+    ldx CurrPlayer
+    lda PlayerFlags,x
+    and #FLAGS_INSURANCE_TAKEN
+    beq .NoInsurance
+
+    lda #<DashboardInsurance
+    sta SpritePtrs+6
+    lda #>DashboardInsurance
+    sta SpritePtrs+7
+
+.NoInsurance
     rts
 
-.ShowCheckboard
-#if 1
+.ShowOptions
+    ; displays game options on betting menu and completed hands on the game screen
     lda #<Bank3_OptsBlank
     sta SpritePtrs+2
     sta SpritePtrs+6
@@ -634,15 +663,6 @@ Bank3_SetupDashboard SUBROUTINE
     adc #<Bank3_Opts
     sta SpritePtrs+8
     stx SpritePtrs+9
-#else
-    lda #<Bank3_Checkerboard
-    sta SpritePtrs
-    sta SpritePtrs+2
-    sta SpritePtrs+4
-    sta SpritePtrs+6
-    sta SpritePtrs+8
-    sta SpritePtrs+10
-#endif
     rts
 
 #if 0
@@ -1313,7 +1333,7 @@ Bank3_SetupChipsPot SUBROUTINE
 
     ldy #0                        ; sprite selector
 
-    lda CurrBet
+    lda CurrBet+1
     cmp #0
     beq .Next50
     ldx #<Bank3_Chip5
@@ -1324,7 +1344,7 @@ Bank3_SetupChipsPot SUBROUTINE
     iny
 
 .Next50
-    lda CurrBet+1
+    lda CurrBet+2
     cmp #$50
     bcc .Next25
     ldx #<Bank3_Chip4
@@ -1427,7 +1447,7 @@ Bank3_SetupPlayerChips SUBROUTINE
     lda #<Bank3_Chip5
     sta SpritePtrs+10
 
-    ; don't flicker the selection on specific frames
+    ; flicker selected chip
     lda #%00011000
     bit FrameCtr
     bne .Return
@@ -2082,6 +2102,8 @@ Bank3_PromptMessagesLSB
     dc.b <Bank3_SplitStr0, <Bank3_SplitStr1, <Bank3_SplitStr2, <Bank3_SplitStr3     ; 6
     dc.b <Bank3_InsuranceStr0, <Bank3_InsuranceStr1, <Bank3_InsuranceStr2, <Bank3_InsuranceStr3             ; 7
 
+    INCLUDE_POSITIONING_SUBS Bank3_
+
 ; ----------------------------------------------------------------------------
     ORG BANK3_ORG + $d00
     RORG BANK3_RORG + $d00
@@ -2158,7 +2180,7 @@ Bank3_GameStateFlags
     dc.b %00110000      ; GS_PLAYER_BLACKJACK
     dc.b %00110000      ; GS_PLAYER_WIN
     dc.b %00110000      ; GS_PLAYER_PUSH
-    dc.b %00000000      ; GS_PLAYER_HAND_OVER
+    dc.b %01000000      ; GS_PLAYER_HAND_OVER (show dashboard on split hand over)
     dc.b %00100000      ; GS_DEALER_TURN
     dc.b %00100000      ; GS_DEALER_PRE_HIT
     dc.b %00100000      ; GS_DEALER_HIT
@@ -2197,7 +2219,10 @@ Bank3_CardToSpriteOffset            ; maps card position to sprite position
     SPRITE_OPTIONS 3
     SPRITE_COLORS 3
 
-    include "bank3/arithmetic.asm"
+    MULTIPLY_TABLE Bank3_, 2, 16
+    MULTIPLY_TABLE Bank3_, 4, 8
+    MULTIPLY_TABLE Bank3_, 6, 10
+    MULTIPLY_TABLE Bank3_, 11, 5
 
 ; ----------------------------------------------------------------------------
     ORG BANK3_ORG + $f00

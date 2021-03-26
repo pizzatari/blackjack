@@ -87,7 +87,7 @@ Bank1_Init
 
     lda #SOUND_ID_CRASH_LANDING
     sta Arg1
-    jsr SoundQueuePlay
+    jsr SoundPlay
 
     ; wait for overscan to finish
     TIMER_WAIT
@@ -410,7 +410,7 @@ Bank1_Overscan SUBROUTINE
     sta VBLANK
     inc FrameCtr
 
-    jsr SoundQueueTick
+    jsr SoundTick
     jsr Bank1_ReadSwitches
 
     ; update joystick timer
@@ -515,7 +515,7 @@ Bank1_ReadJoystick SUBROUTINE
     and #JOY_FIRE_MASK              ; check for 0
     bne .Return
 
-    jsr SoundQueueClear
+    jsr SoundClear
 
     ; reset stack
     pla
@@ -591,37 +591,9 @@ Bank1_FlamesLo
 Bank1_FlamesHi
     dc.b >Bank1_FlameGfx0, >Bank1_FlameGfx1, >Bank1_FlameGfx2, >Bank1_FlameGfx3
 
-#if 0
-Bank1_CasinoGfx0
-    dc.b %00000111
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %11100011
-    dc.b %11100011
-    dc.b %11100011
-    dc.b %11111111
-    dc.b 0
-CASINO_HEIGHT = . - Bank1_CasinoGfx0
-Bank1_CasinoGfx1
-    dc.b %11100000
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %11111111
-    dc.b %01000101
-    dc.b %01000101
-    dc.b %01000101
-    dc.b %11111111
-Bank1_BlankSprite
-    ds.b 20, 0
-#endif
-
     include "bank1/gen/casino.sp"
 
 CASINO_HEIGHT = . - Bank1_CasinoGfx1
-
 
 ; these have to be multiples of 2
 Bank1_MotionJitterY
@@ -633,18 +605,6 @@ Bank1_MotionJitterY
 ; -----------------------------------------------------------------------------
     include "../atarilib/lib/sound.asm"
     include "sys/bank1_audio.asm"
-
-    IF BALLAST_ON == 1
-        ; ballast code
-        LIST OFF
-        REPEAT [$3fc0 - $31b0] / 10
-            lda $f000  ; 3
-            sta $f000  ; 3
-            inc $f000  ; 3
-            tax        ; 1
-        REPEND
-        LIST ON
-    ENDIF
 
     ALIGN 256, FILLER_CHAR
 

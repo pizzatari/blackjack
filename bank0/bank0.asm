@@ -648,7 +648,7 @@ Bank0_BettingKernel SUBROUTINE
     jsr Bank0_SetSpriteOptions
     jsr Bank0_ClearSprites
 
-    SLEEP_LINES 33
+    SLEEP_LINES 31
 
     ; casino chips section ----------------------------------------------------
     TIMED_JSR Bank0_SetupChipsPot, TIME_CHIPS_POT, TIM8T
@@ -677,7 +677,7 @@ Bank0_BettingKernel SUBROUTINE
     ;------
 
     ; current bet section -----------------------------------------------------
-    SET_POINTER TempPtr, CurrBet1
+    SET_POINTER TempPtr, CurrBet
     jsr Bank0_SetupInteger
 
     ldy #SPRITE_BET_IDX
@@ -956,7 +956,7 @@ Bank0_SetupOptionsDash SUBROUTINE
     tay
     clc
 
-    lda Bank0_Multiply6,y
+    lda Bank0_Mult6,y
     adc #<Bank0_Opts
     sta SpritePtrs+8
     stx SpritePtrs+9
@@ -1009,8 +1009,8 @@ Bank0_SetupInteger SUBROUTINE
     lsr
     tax
     clc
-    lda Bank0_Multiply6,x       ; account for digit height
-    ldx Bank0_Multiply4,y       ; X = 2 digits x 2 bytes
+    lda Bank0_Mult6,x       ; account for digit height
+    ldx Bank0_Mult4,y       ; X = 2 digits x 2 bytes
     adc #<Bank0_Digit0
     sta SpritePtrs,x
     lda #>Bank0_Digit0
@@ -1022,8 +1022,8 @@ Bank0_SetupInteger SUBROUTINE
     and #$0f
     tax
     clc
-    lda Bank0_Multiply6,x       ; account for digit height
-    ldx Bank0_Multiply4,y       ; X = 2 digits x 2 bytes
+    lda Bank0_Mult6,x       ; account for digit height
+    ldx Bank0_Mult4,y       ; X = 2 digits x 2 bytes
     adc #<Bank0_Digit0
     sta SpritePtrs+2,x
     lda #>Bank0_Digit0
@@ -1073,9 +1073,8 @@ Bank0_SetupChipsPot SUBROUTINE
     ;  100: 100
     ;   10: 10, 50
     
-    
     ; 
-    lda CurrBet+1
+    lda CurrBet+2
     and #$07
     tax
     ldy #NUM_SPRITES-1
@@ -1103,7 +1102,7 @@ Bank0_SetupChipsPot SUBROUTINE
     ; 12 34
     sed
 
-    lda CurrBet
+    lda CurrBet+1
     and #$f0
     beq .Do100
 
@@ -1120,17 +1119,17 @@ Bank0_SetupChipsPot SUBROUTINE
     
 
 .Do100
-    lda CurrBet
+    lda CurrBet+1
     and #$0f
     beq .Do10
 
 .Do10
-    lda CurrBet+1
+    lda CurrBet+2
     and #$f0
     beq .Do1
 
 .Do1
-    lda CurrBet+1
+    lda CurrBet+2
     and #$0f
     beq .Continue
 
@@ -1163,7 +1162,7 @@ Bank0_SetupChipsPot SUBROUTINE
 
     ldy #0                        ; sprite selector
 
-    lda CurrBet
+    lda CurrBet+1
     cmp #0
     beq .Next50
     ldx #<Bank0_Chip5
@@ -1174,7 +1173,7 @@ Bank0_SetupChipsPot SUBROUTINE
     iny
 
 .Next50
-    lda CurrBet+1
+    lda CurrBet+2
     cmp #$50
     bcc .Next25
     ldx #<Bank0_Chip4
@@ -1421,13 +1420,13 @@ PROC_BANK2_OVERSCAN0        = 3
 Bank0_ProcTableLo
     dc.b <Bank1_Init
     dc.b <AnimationClear
-    dc.b <SoundQueueClear
+    dc.b <SoundClear
     dc.b <Bank2_Overscan
 
 Bank0_ProcTableHi
     dc.b >Bank1_Init
     dc.b >AnimationClear
-    dc.b >SoundQueueClear
+    dc.b >SoundClear
     dc.b >Bank2_Overscan
 
     include "sys/bank0_palette.asm"
@@ -1453,7 +1452,10 @@ Bank0_DrawTitleGraphic SUBROUTINE
     PAGE_BOUNDARY_SET
     include "bank0/gen/title-gfx-48.sp"
     PAGE_BOUNDARY_CHECK "TItle gfx"
-    include "bank0/arithmetic.asm"
+
+    MULTIPLY_TABLE Bank0_, 4, 10
+    MULTIPLY_TABLE Bank0_, 5, 4
+    MULTIPLY_TABLE Bank0_, 6, 20
 
     ; Bank tailored data from lib\macros.asm
     SPRITE_OPTIONS 0

@@ -2,14 +2,34 @@ TODO List
 ---------
 
 Tasks:
-    * Verify 1 & 2 decks are workin correctly for card dealing,
-      next card search, and discarding.
+    User Interface:
+    * Fix line count problems introduced since last update
+    * Make denominations reflect the number of player chips
+    * Pip colors
+    * Adjust text alignment
+    * See if PlayKernel can be optimized further
+
+    Animation & Sound:
+    * blackjack win animation
+    * game win break the bank & take off animation
+    * adjust volume
+
+    Logic:
+    * Verify 1 & 2 decks are working correctly for card dealing,
+    * Bug: Hand was 7,7 then split to:
+      Hand 1: 7,8,10 (25) - bust
+      Hand 2: 7,7,9 (23) - bust
+      The dealer dealt until 22!
 
 Bugs:
+    * Doubledown and split must be disallowed when dealer has blackjack
+    * Split hands must deal two cards before player makes a move,
+      otherwise a doubledown could never bust
     * No double down option given on 2nd split hand (P0). The option
       was offered and taken on 1st split hand (P1).
     * Inactive split hand occasionally flickers in color.
         - flickers when gamestate = 11 (player set flags)
+        - fixed by adding "show dashboard" flag to GS_PLAYER_HAND_OVER flags
 
 New Rules:
     * consider implementing 5-card Charlie.
@@ -17,15 +37,6 @@ New Rules:
 
 Animation:
     * Consider re-implementing the animation queue using the task queue.
-
-Logic:
-    * Bug: Hand was 7,7 then split to:
-      Hand 1: 7,8,10 (25) - bust
-      Hand 2: 7,7,9 (23) - bust
-      The dealer dealt until 22!
-
-User Interface:
-    * Make denominations reflect the number of player chips
 
 Done:
     * Re-shuffle the cards when the number of decks change.

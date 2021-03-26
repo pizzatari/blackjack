@@ -10,24 +10,6 @@
 ; Local Macros
 ; -----------------------------------------------------------------------------
     ; -----------------------------------------------------------------------------
-    ; Desc:     Assigns a pointer to the selected denomination.
-    ; Param:    2 byte pointer variable
-    ; Input:    X register (bet menu selection: 0-5)
-    ; Output:
-    ; -----------------------------------------------------------------------------
-    MAC SET_DENOM_PTR
-.DstPtr SET {1}
-
-    clc
-    lda #<Bank2_DenomValue
-    adc Bank2_Mult3,x
-    sta .DstPtr
-    lda #>Bank2_DenomValue
-    adc #0
-    sta .DstPtr+1
-    ENDM
-
-    ; -----------------------------------------------------------------------------
     ; Desc:     Copies a 3-byte integer.
     ; Param:    destination, source
     ; Input:
@@ -238,8 +220,7 @@ Bank2_Overscan
     beq .NoKey
 .GotKey
     ;lda Bank0_ScanCodes,y
-    ;sta CurrBet+1
-    sty CurrBet+1
+    sty CurrBet+2
     lda #0
     sta KeyPress
 .NoKey
@@ -420,7 +401,7 @@ Bank2_CompareInt3 SUBROUTINE
 Bank2_ApplyCurrBet SUBROUTINE
     sed
     SET_POINTER TempPtr, PlayerChips
-    COPY_INT3 TempChips, CurrBet1
+    COPY_INT3 TempChips, CurrBet
     SET_POINTER TempPtr2, TempChips
     jsr Bank2_CompareInt3
     bmi .BadBet
@@ -1069,7 +1050,6 @@ Bank2_CalcHandScore SUBROUTINE
 ; Inputs:   CurrPlayer
 ; Outputs:
 ; -----------------------------------------------------------------------------
-#if 1
 Bank2_PayoutWinnings SUBROUTINE
     ldx #0
     ldy CurrPlayer
@@ -1122,7 +1102,7 @@ Bank2_PayoutWinnings SUBROUTINE
 
     sed
     SET_POINTER TempPtr, PlayerChips
-    COPY_INT3 TempChips, CurrBet1
+    COPY_INT3 TempChips, CurrBet
     SET_POINTER TempPtr2, TempChips
 .DoPayouts
     jsr Bank2_AddInt3
@@ -1142,98 +1122,6 @@ Bank2_PayoutWinnings SUBROUTINE
 
 .Return
     rts
-
-#else
-Bank2_PayoutWinnings SUBROUTINE
-    sed
-    ldx CurrPlayer
-
-    SET_POINTER TempPtr, PlayerChips
-    COPY_INT3 TempChips, CurrBet1
-    SET_POINTER TempPtr2, TempChips
-
-    ; pay out player winnings or refund the bet on a push
-.CheckForBlackjack
-    lda PlayerFlags,x
-    and #FLAGS_BLACKJACK
-    beq .CheckWin
-
-    ; player has blackjack: payout 3:2
-    ; pay out 1/2 now and the remainder below
-    ; divide current bet by 2
-    jsr Bank2_Div2Int3
-    ; add half bet to player's chips
-    jsr Bank2_AddInt3
-
-    ldy #2      ; payout original bet plus winnings
-    jmp .DoPayout
-
-.CheckWin
-    ldx CurrPlayer
-    lda PlayerFlags,x
-    and #FLAGS_WIN
-    beq .CheckPush
-
-    ; player has won: payout 2:1
-    ldy #2      ; payout original bet plus winnings
-    ; check if there was a doubledown
-    lda PlayerFlags,x
-    and #FLAGS_DOUBLEDOWN_TAKEN
-    beq .DoPayout
-
-    ; player won double down: double the payout
-    iny
-    iny
-    jmp .DoPayout
-
-.CheckPush
-    lda PlayerFlags,x
-    and #FLAGS_PUSH
-    beq .PlayerLost
-
-    ; player pushed
-    ldy #1      ; return original bet
-    ; check if there was a doubledown
-    lda PlayerFlags,x
-    and #FLAGS_DOUBLEDOWN_TAKEN
-    beq .DoPayout
-
-    ; return the double down bet
-    iny
-    jmp .DoPayout
-
-.PlayerLost
-    ; check if the player took insurance
-    lda PlayerFlags,x
-    and #FLAGS_INSURANCE_TAKEN
-    beq .Return
-
-    ; check if dealer had blackjack
-    lda #FLAGS_BLACKJACK
-    bit PlayerFlags+DEALER_IDX
-    beq .Return
-
-    ; check for bust; insurance does not pay out on a bust
-    lda PlayerFlags,x
-    and #FLAGS_BUST
-    bne .Return
-
-    ; player took insurance and dealer had blackjack
-    ; payout 2:1; payout = 2 x (1/2 x current bet) = current bet
-    ldy #1      ; payout current bet
-
-.DoPayout
-    sty PayoutCtr
-    SET_POINTER TempPtr2, CurrBet1
-.PayoutLoop
-    jsr Bank2_AddInt3
-    dec PayoutCtr
-    bne .PayoutLoop
-
-.Return
-    cld
-    rts
-#endif
 
 ; -----------------------------------------------------------------------------
 ; Desc;     Check user input for dashboard navigation.
@@ -1635,7 +1523,7 @@ WaitPlayerBet SUBROUTINE
     lda KeyPress
     beq .CheckJoystick
 
-    sta CurrBet+1
+    sta CurrBet+2
     lda #0
     sta KeyPress
 
@@ -1687,7 +1575,8 @@ WaitPlayerBet SUBROUTINE
 
     ; bet is selected: make sure CurrBet is > 0
     lda CurrBet
-    adc CurrBet+1
+    ora CurrBet+1
+    ora CurrBet+2
     bne .FirstDeal
 
     lda #SOUND_ID_ERROR
@@ -1717,11 +1606,11 @@ WaitPlayerBet SUBROUTINE
 ; decreases bet by currently selected denomination
 ActionPlayerBetDown SUBROUTINE
     ; assign pointers
-    SET_POINTER TempPtr, CurrBet1
+    SET_POINTER TempPtr, CurrBet
     jsr Bank2_GetBetMenu
     tax
     cld
-    SET_DENOM_PTR TempPtr2              ; TempPtr2 = &DenomValue[x]
+    jsr SetDenomPtr                     ; TempPtr2 = &DenomValue[x]
 
     ; compare TempPtr and TempPtr2; prevent if curr bet > denom value
     sed
@@ -1749,7 +1638,7 @@ ActionPlayerBetUp SUBROUTINE
     jsr Bank2_GetBetMenu
     tax
     cld
-    SET_DENOM_PTR TempPtr2              ; TempPtr2 = &DenomValue[x]
+    jsr SetDenomPtr                     ; TempPtr2 = &DenomValue[x]
 
     ; compare TempPtr and TempPtr2; prevent if PlayerChips < denom value
     sed
@@ -1761,7 +1650,7 @@ ActionPlayerBetUp SUBROUTINE
     jsr Bank2_SubInt3
 
     ; increase current bet by the same amount
-    SET_POINTER TempPtr, CurrBet1
+    SET_POINTER TempPtr, CurrBet
     jsr Bank2_AddInt3
 
 .Return
@@ -2234,7 +2123,7 @@ WaitPlayerSurrender SUBROUTINE
 
     ; pay back 1/2 the bet chips
     sed
-    COPY_INT3 TempChips, CurrBet1
+    COPY_INT3 TempChips, CurrBet
     SET_POINTER TempPtr2, TempChips
     jsr Bank2_Div2Int3
     SET_POINTER TempPtr, PlayerChips
@@ -2336,7 +2225,7 @@ WaitPlayerInsurance SUBROUTINE
 
     sed
     ; insurance bet is fixed to 1/2 current bet
-    COPY_INT3 TempChips, CurrBet1
+    COPY_INT3 TempChips, CurrBet
     SET_POINTER TempPtr2, TempChips
     jsr Bank2_Div2Int3
     SET_POINTER TempPtr, PlayerChips
@@ -2456,8 +2345,14 @@ WaitPlayerSplit SUBROUTINE
     ; turn off insurance; insurance can't be taken on split hands (as the player now knows
     ; the dealer does not have blackjack)
     lda GameFlags
-    and #[~FLAGS_INSURANCE_ALLOWED]
+    and #~FLAGS_INSURANCE_ALLOWED
     sta GameFlags
+
+    ; if we got here with an insurance bet, then the insurance bet lost
+    ; this will turn off the dashboard insurance icon
+    lda PlayerFlags
+    and #~FLAGS_INSURANCE_TAKEN
+    sta PlayerFlags
 
     ; continue play
     lda #GS_PLAYER_SPLIT_DEAL
@@ -2875,7 +2770,7 @@ WaitIntermission SUBROUTINE
     jsr Bank2_ApplyCurrBet
     beq .Return
     ; not enough chips, go all in
-    COPY_INT3 CurrBet1, PlayerChips
+    COPY_INT3 CurrBet, PlayerChips
     lda #0
     sta PlayerChips
     sta PlayerChips+1
@@ -3043,8 +2938,24 @@ Bank2_CardPointValue
     ;     -   A  2  3  4  5  6  7  8  9  10  J   Q   K   -  -
     dc.b $0, $11, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $10, $10, $0, $0
 
+    ; -----------------------------------------------------------------------------
+    ; Desc:     Asssgns a pointer to the selected denomination.
+    ; Param:    2 byte pointer variable
+    ; Input:    X register (bet menu selection: 0-5)
+    ; Output:
+    ; -----------------------------------------------------------------------------
+SetDenomPtr SUBROUTINE
+    clc
+    lda #<Bank2_DenomValue
+    adc Bank2_Mult3,x
+    sta TempPtr2
+    lda #>Bank2_DenomValue
+    adc #0
+    sta TempPtr2+1
+    rts
+
 #if 1
-; These must be BCD values. 1 is added for the actual value.
+; These must be BCD values.
 Bank2_DenomValue 
     dc.b $00, $00, $01
     dc.b $00, $00, $10
@@ -3062,20 +2973,13 @@ Bank2_DenomValue2
     dc.b $0, $0, $0, $0, $10, $0
 #endif
 
-    IF BALLAST_ON == 1
-        ; ballast code
-        LIST OFF
-        REPEAT [ $1fb0 - $1e70 ] / 10
-            lda $f000  ; 3
-            sta $f000  ; 3
-            inc $f000  ; 3
-            tax        ; 1
-        REPEND
-        LIST ON
-    ENDIF
-
     include "lib/test.asm"
-    include "bank2/arithmetic.asm"
+
+    MULTIPLY_TABLE Bank2_, 3, 7
+    MULTIPLY_TABLE Bank2_, 4, 10
+    MULTIPLY_TABLE Bank2_, 6, 20
+    POWER_TABLE Bank2_, 2, 8
+
     include "sys/bank2_palette.asm"
 
 ; Indexed by game state values.
@@ -3086,41 +2990,41 @@ Bank2_DenomValue2
 ; bit 3:        flicker the currently selected object
 ; bit 0,1,2:    index into PromptMessages table
 Bank2_GameStateFlags
-    dc.b 0                      ; GS_TITLE_SCREEN
-    dc.b %00101001              ; GS_NEW_GAME
-    dc.b %00001001              ; GS_PLAYER_BET
-    dc.b %00001001              ; GS_PLAYER_BET_DOWN
-    dc.b %00001001              ; GS_PLAYER_BET_UP
-    dc.b %01000000              ; GS_OPEN_DEAL1
-    dc.b %01000000              ; GS_OPEN_DEAL2
-    dc.b %01000000              ; GS_OPEN_DEAL3
-    dc.b %01000000              ; GS_OPEN_DEAL4
-    dc.b %01000000              ; GS_OPEN_DEAL5
-    dc.b %01000010              ; GS_DEALER_SET_FLAGS
-    dc.b %01000010              ; GS_PLAYER_SET_FLAGS
-    dc.b %01000010              ; GS_PLAYER_TURN
-    dc.b %01000010              ; GS_PLAYER_STAY
-    dc.b %01000010              ; GS_PLAYER_PRE_HIT
-    dc.b %01000010              ; GS_PLAYER_HIT
-    dc.b %01000010              ; GS_PLAYER_POST_HIT
-    dc.b %01000011              ; GS_PLAYER_SURRENDER
-    dc.b %01000100              ; GS_PLAYER_DOUBLEDOWN
-    dc.b %01000101              ; GS_PLAYER_SPLIT
-    dc.b %01000101              ; GS_PLAYER_SPLIT_DEAL
-    dc.b %01000110              ; GS_PLAYER_INSURANCE
-    dc.b %00110000              ; GS_PLAYER_BLACKJACK
-    dc.b %00110000              ; GS_PLAYER_WIN
-    dc.b %00110000              ; GS_PLAYER_PUSH
-    dc.b 0                      ; GS_PLAYER_HAND_OVER
-    dc.b %00110000              ; GS_DEALER_TURN
-    dc.b %00110000              ; GS_DEALER_PRE_HIT
-    dc.b %00110000              ; GS_DEALER_HIT
-    dc.b %00110000              ; GS_DEALER_POST_HIT
-    dc.b %00110000              ; GS_DEALER_HAND_OVER
-    dc.b %00110000              ; GS_GAME_OVER
-    dc.b %00110000              ; GS_INTERMISSION
-    dc.b %00110000              ; GS_BROKE_BANK1
-    dc.b %00110000              ; GS_BROKE_BANK2
+    dc.b 0              ; GS_TITLE_SCREEN
+    dc.b %00101001      ; GS_NEW_GAME
+    dc.b %00001001      ; GS_PLAYER_BET
+    dc.b %00001001      ; GS_PLAYER_BET_DOWN
+    dc.b %00001001      ; GS_PLAYER_BET_UP
+    dc.b %01000000      ; GS_OPEN_DEAL1
+    dc.b %01000000      ; GS_OPEN_DEAL2
+    dc.b %01000000      ; GS_OPEN_DEAL3
+    dc.b %01000000      ; GS_OPEN_DEAL4
+    dc.b %01000000      ; GS_OPEN_DEAL5
+    dc.b %01000010      ; GS_DEALER_SET_FLAGS
+    dc.b %01000010      ; GS_PLAYER_SET_FLAGS
+    dc.b %01000010      ; GS_PLAYER_TURN
+    dc.b %01000010      ; GS_PLAYER_STAY
+    dc.b %01000010      ; GS_PLAYER_PRE_HIT
+    dc.b %01000010      ; GS_PLAYER_HIT
+    dc.b %01000010      ; GS_PLAYER_POST_HIT
+    dc.b %01000011      ; GS_PLAYER_SURRENDER
+    dc.b %01000100      ; GS_PLAYER_DOUBLEDOWN
+    dc.b %01000101      ; GS_PLAYER_SPLIT
+    dc.b %01000101      ; GS_PLAYER_SPLIT_DEAL
+    dc.b %01000110      ; GS_PLAYER_INSURANCE
+    dc.b %00110000      ; GS_PLAYER_BLACKJACK
+    dc.b %00110000      ; GS_PLAYER_WIN
+    dc.b %00110000      ; GS_PLAYER_PUSH
+    dc.b %01000000      ; GS_PLAYER_HAND_OVER (show dashboard on split hand over)
+    dc.b %00110000      ; GS_DEALER_TURN
+    dc.b %00110000      ; GS_DEALER_PRE_HIT
+    dc.b %00110000      ; GS_DEALER_HIT
+    dc.b %00110000      ; GS_DEALER_POST_HIT
+    dc.b %00110000      ; GS_DEALER_HAND_OVER
+    dc.b %00110000      ; GS_GAME_OVER
+    dc.b %00110000      ; GS_INTERMISSION
+    dc.b %00110000      ; GS_BROKE_BANK1
+    dc.b %00110000      ; GS_BROKE_BANK2
 
 ; Game state handlers implement the core game mechanics.
 ;   Action handlers execute for one frame.
@@ -3215,9 +3119,9 @@ Bank2_ProcTableLo
     dc.b <Bank0_BettingKernel
     dc.b <Bank0_GameIO
     dc.b <Bank3_PlayKernel
-    dc.b <SoundQueuePlay
-    dc.b <SoundQueuePlay2
-    dc.b <SoundQueueTick
+    dc.b <SoundPlay
+    dc.b <SoundPlay2
+    dc.b <SoundTick
     dc.b <Bank0_ReadKeypad
     dc.b <Bank1_DepartKernel
 
@@ -3227,9 +3131,9 @@ Bank2_ProcTableHi
     dc.b >Bank0_BettingKernel
     dc.b >Bank0_GameIO
     dc.b >Bank3_PlayKernel
-    dc.b >SoundQueuePlay
-    dc.b >SoundQueuePlay2
-    dc.b >SoundQueueTick
+    dc.b >SoundPlay
+    dc.b >SoundPlay2
+    dc.b >SoundTick
     dc.b >Bank0_ReadKeypad
     dc.b >Bank1_DepartKernel
 

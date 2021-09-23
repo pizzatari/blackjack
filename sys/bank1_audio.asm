@@ -172,6 +172,8 @@ SoundCrashLanding
     dc.b $88, 15
     dc.b $88, 15
     dc.b $88, 15
+    ;dc.b $88, 15
+    ;dc.b $88, 15
     dc.b 0
 
 ;SoundBankBroke

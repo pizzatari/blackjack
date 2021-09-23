@@ -1,7 +1,7 @@
 
 ; Start of bank 3
 ; -----------------------------------------------------------------------------
-    SEG bank3
+    SEG Bank3
 
     ORG BANK3_ORG, FILLER_CHAR
     RORG BANK3_RORG
@@ -9,27 +9,32 @@
 ; -----------------------------------------------------------------------------
 ; Shared Variables
 ; -----------------------------------------------------------------------------
-Bank3_SeqPtr SET TempVars
+Bank3_SeqPtr        SET TempVars
 ; animation add (must be same as vars in Bank2)
-Bank3_AddID SET TempVars+2
-Bank3_AddPos SET TempVars+3
+Bank3_AddID         SET TempVars+2
+Bank3_AddPos        SET TempVars+3
 
 ; -----------------------------------------------------------------------------
 ; Local Variables
 ; -----------------------------------------------------------------------------
 ; dashboard rendering
-PF0Bits SET TempVars
-PF2Bits SET TempVars+1
+PF0Bits             SET TempVars
+PF2Bits             SET TempVars+1
 
 ; card rendering
-PlyrIdx SET TempVars+1
-EndIdx SET TempVars+2
-AnimIdx SET TempVars+3
-AnimRow SET TempVars+4
+CardIdx             = Arg1
+SprIdx              = Arg2
 
-HoleIdx SET TempVars+5
-GapIdx SET TempVars+5
-GapLastElem SET TempVars+6
+PlyrIdx             SET TempVars+1
+TempVal             SET TempVars+2
+
+AnimIdx             SET TempVars+3
+AnimRow             SET TempVars+4
+
+HoleGfx             SET TempVars+7
+HoleIdx             SET TempVars+5
+GapIdx              SET TempVars+5
+GapLastElem         SET TempVars+6
 
 ; wide sprite rendering for Bank3_DrawColorText & Bank3_DrawColorTextJump
 ;DrawHeight SET TempVars+6
@@ -40,7 +45,8 @@ Bank3_Reset
     bit BANK0_HOTSPOT
 
 Bank3_PlayKernel SUBROUTINE
-    lda #15*76/64
+	; 7 lines of vertical blank are reserved for additional setup
+    lda #7*76/64
     sta TIM64T
 
 #if 0 ; PIP_COLORS
@@ -52,53 +58,23 @@ Bank3_PlayKernel SUBROUTINE
     sta HMOVE
 #endif
 
-    ; set up an index into the hole card matrix table
-    ldx #DEALER_IDX
-    stx PlyrIdx
-    ldy PlayerNumCards,x
-    lda CurrState
-    ; move bit 7 value to bit 3 position (10000000 -> 00001000)
-    asl
-    lda #%00000111
-    adc #0                  ; this method saves 2 cycles
-    and #%00001000
-    ; build the index
-    ora Bank3_NumCardsFlag,y
-    ora PlyrIdx             ; Hole Card | Cards >= 2 | Player
-    sta HoleIdx
-
-    ; search for any card animations (only 1 will exist at a time)
-    ldx #ANIM_QUEUE_LEN
-.Search
-    lda AnimID-1,x
-    cmp #ANIM_ID_FLIP_CARD
-    bne .Next
-    stx AnimIdx
-    lda AnimPosition-1,x    ; 11111xxx
-    lsr
-    lsr
-    lsr
-    sta AnimRow             ; xxx11112
-    jmp .Found
-.Next
-    dex
-    bne .Search
-    lda #$ff
-    sta AnimRow
-    stx AnimIdx
-.Found
-
+	jsr Bank3_SetupIndexes
     jsr Bank3_SetupMessageBar
+    ldy #OPT_BAR_IDX
+    jsr Bank3_SetColors2
+    jsr Bank3_SetupDashboardMask
+
     TIMER_WAIT      ; Wait for vertical blank to finish
+
+    lda #0
+    sta WSYNC
+    sta VBLANK
 
     ; Top dashboard rows -----------------------------------------------------
     lda #MSG_ROW_HEIGHT*76/64
     sta TIM64T
 
     ; draw 1st dashboard row
-    ldy #OPT_BAR_IDX
-    jsr Bank3_SetColors
-    jsr Bank3_SetupDashboardMask
     ldy #MESSAGE_TEXT_HEIGHT-1
     jsr Bank3_DrawMessageBar
 
@@ -107,15 +83,20 @@ Bank3_PlayKernel SUBROUTINE
     ldy #DASHOPTS_HEIGHT-1
     jsr Bank3_DrawMessageBar
 
+    lda #0
+    sta PF0
+    sta PF1
+    sta PF2
+
+	; lower playfield priority
+	lda #0
+	sta CTRLPF
+
     TIMER_WAIT
 
     ; Dealer cards row --------------------------------------------------------
     lda #17*76/64
     sta TIM64T
-
-    lda #1
-    sta VDELP0
-    sta VDELP1
 
     ldx #DEALER_IDX
     ldy PlayerNumCards,x
@@ -124,30 +105,27 @@ Bank3_PlayKernel SUBROUTINE
     lda Bank3_HandNusiz1,y
     sta NUSIZ1
 
-    lda #0
-    sta PF0
-    sta PF1
-    sta PF2
-
     ldy #SPRITE_CARDS_IDX
-    jsr Bank3_PositionSprites
+    jsr Bank3_PositionSprites	; 9 (9)
 
     ; hide MOVE line
-    sta COLUBK
-    sta PF0
-    sta PF1
-    sta PF2
+    sta COLUBK  				; 3 (12)
+    ldy #COLOR_CARDS_IDX		; 2 (14)
 
-    ldy #COLOR_CARDS_IDX
-    jsr Bank3_SetColors
     sta WSYNC
-    jsr Bank3_SetPlayfield
+    jsr Bank3_SetColors2		; 36 (36) 
+    sta WSYNC
+    jsr Bank3_SetTableau
+
+	; lower playfield priority
+	lda #0
+	sta CTRLPF
+
     sta WSYNC
 
+    ;jsr Bank3_ResetCardSprites
     ldx #DEALER_IDX
     stx PlyrIdx
-    jsr Bank3_ResetCardSprites
-    sta WSYNC
     jsr Bank3_SetupCardSprites
 
     TIMER_WAIT
@@ -178,7 +156,7 @@ Bank3_PlayKernel SUBROUTINE
     sta VDELP0
     sta VDELP1
 
-    lda #30*76/64
+    lda #29*76/64
     sta TIM64T
 
     ; decide if navigation menu should be displayed
@@ -223,7 +201,6 @@ Bank3_PlayKernel SUBROUTINE
     jsr Bank3_DrawMessageBar
 
     sta WSYNC
-    sta WSYNC
 
     lda #NUSIZE_3_MEDIUM
     sta NUSIZ0
@@ -241,7 +218,7 @@ Bank3_PlayKernel SUBROUTINE
     ldy #COLOR_CARDS_IDX
     jsr Bank3_SetColors
     sta WSYNC
-    jsr Bank3_SetPlayfield
+    jsr Bank3_SetTableau
     sta WSYNC
     jmp .PlayerSection
 
@@ -259,7 +236,7 @@ Bank3_PlayKernel SUBROUTINE
     lda #1
     sta VDELP0
     sta VDELP1
-    jsr Bank3_ResetCardSprites
+    ;jsr Bank3_ResetCardSprites
 
     lda #FLAGS_SPLIT_TAKEN
     bit GameFlags
@@ -385,7 +362,7 @@ Bank3_PlayKernel SUBROUTINE
     sta GRP1
 
     ; saving 2 bytes of stack by jumping
-    JUMP_BANK PROC_BANK2_OVERSCAN3, 2
+    JUMP_BANK PROC_BANK3_OVERSCAN, 2, 3
 
 ; -----------------------------------------------------------------------------
 ; SUBROUTINES
@@ -471,6 +448,8 @@ Bank3_SetupPromptBar SUBROUTINE
 
     lda #<Bank3_LeftArrow
     sta SpritePtrs
+    lda #>Bank3_LeftArrow
+    sta SpritePtrs+1
 
     lda Bank3_PromptMessagesLSB,y
     sta SpritePtrs+2
@@ -483,7 +462,9 @@ Bank3_SetupPromptBar SUBROUTINE
 
     lda #<Bank3_RightArrow
     sta SpritePtrs+10
-
+    lda #>Bank3_RightArrow
+    sta SpritePtrs+11
+    lda #>Bank3_BlankStr
     jmp .Return
 
 .NoPrompt
@@ -495,14 +476,14 @@ Bank3_SetupPromptBar SUBROUTINE
     sta SpritePtrs+8
     sta SpritePtrs+10
 
+    lda #>Bank3_BlankStr
+    sta SpritePtrs+1
+    sta SpritePtrs+11
 .Return
-    ldx #>Bank3_BlankStr
-    stx SpritePtrs+1
-    stx SpritePtrs+3
-    stx SpritePtrs+5
-    stx SpritePtrs+7
-    stx SpritePtrs+9
-    stx SpritePtrs+11
+    sta SpritePtrs+3
+    sta SpritePtrs+5
+    sta SpritePtrs+7
+    sta SpritePtrs+9
 
     rts
 
@@ -868,461 +849,6 @@ Bank3_SetupStatusBar SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Resets sprites to blank state. This is the fixed time part of
-;           card initialization.
-; Inputs:   X register (current hand)
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank3_ResetCardSprites SUBROUTINE
-#if 0
-    ; assign card colors (active/inactive, dealer is always active)
-    lda PlyrIdx
-    asl
-    asl
-    ora CurrPlayer
-    tay
-    lda Bank3_ColorMatrix,y
-    sta COLUP0
-    sta COLUP1
-#endif
-
-    lda #>BlankCard
-    sta SpritePtrs+1
-    sta SpritePtrs+3
-    sta SpritePtrs+5
-    sta SpritePtrs+7
-    sta SpritePtrs+9
-    sta SpritePtrs+11
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Assigns the hand's card sprites
-; Inputs:   X register (rendering player index)
-;           PlyrIdx (rendering player index)
-; Ouputs:
-; Notes:    Must be paired with Bank3_RenderCardSprites.
-;
-; Card Color Matrix:
-; Assign the card colors for active and inactive highlighting.
-;
-;      Curr       CurrHand
-;     Player    00   01   10
-;             .--------------.
-;         00  |  0 |  1 |  0 |
-;         01  |  1 |  0 |  1 |
-;         10  |  0 |  1 |  0 |
-;             '--------------'
-;
-; Colors to use: W=white, G=gray
-;
-;                   CurrPlayer
-;      Hand     Player1 Player2 Dealer
-;   ------------------------------------
-;   | Player1 |   W    |   G   |   W   |
-;   | Player2 |   G    |   W   |   G   |
-;   | Dealer  |   W    |   W   |   W   |
-;   ------------------------------------
-;
-; Cards:
-;             0       1       2       3       4       5
-;
-;   (setup gap)
-;   (setup ranks)
-;            ____    ____    ____    ____    ____    ____
-;   Ranks   |    |  |    |  |    |  |    |  |    |  |    |
-;           |____|  |____|  |____|  |____|  |____|  |____|
-;
-;   Gap      ____    ____    ____    ____    ____    ____
-;           |____|  |____|  |____|  |____|  |____|  |____|
-;
-;   (setup suits)
-;            ____    ____    ____    ____    ____    ____
-;   Suits   |    |  |    |  |    |  |    |  |    |  |    |
-;           |____|  |____|  |____|  |____|  |____|  |____|
-;
-;
-; Assign these values:
-;   1. card color (active/inactive)
-;   2. suit and rank graphics
-;   3. hole card graphics
-;   4. card flip animation graphics
-;
-; -----------------------------------------------------------------------------
-RENDER_DEBUG = 0
-Bank3_SetupCardSprites SUBROUTINE
-    IF RENDER_DEBUG == 1
-    lda #$40        ; red
-    sta COLUBK
-    ENDIF
-
-    ; set up the end index into PlayerCards
-    ldy PlyrIdx                         ; 3 (3)
-    ldx Bank3_Mult6+1,y                 ; 4 (7)
-    stx EndIdx                          ; 3 (10)
-
-    ; set up the graphics pointers
-    clc                                 ; 2 (12)
-    ldy #NUM_VISIBLE_CARDS-1            ; 2 (14)    current card index
-.Assign
-    ; assign rank
-    lda PlayerCards-1,x                 ; 4 (4)
-    pha                                 ; 3 (7)     stack temp = card
-    and #CARD_RANK_MASK                 ; 2 (9)
-    tax                                 ; 2 (11)
-    lda Bank3_CardRankSprite,x          ; 4 (15)    get the graphics LSB
-    ldx Bank3_Mult2,y                   ; 4 (19)
-    sta SpritePtrs,x                    ; 4 (23)    ranks put in SpritePtrs
-
-    ; assign suit
-    pla                                 ; 4 (27)    A = card
-    bne .NotEmpty                       ; 2 (29)  
-    lda #<BlankCard                     ;           2 (31)
-    jmp .SaveSuit                       ;           3 (34)
-.NotEmpty
-    and #CARD_SUIT_MASK                 ; 2 (32)
-    lsr                                 ; 2 (34)
-    lsr                                 ; 2 (36)
-    lsr                                 ; 2 (38)
-    lsr                                 ; 2 (40)
-    tax                                 ; 2 (42)
-    lda Bank3_CardSuitSprite,x          ; 4 (46)    get the graphics LSB
-.SaveSuit
-    pha                                 ; 3 (49)    suits put on the stack
-
-    ; decrement ending and current card indexes
-    dec EndIdx                          ; 5 (54)
-    ldx EndIdx                          ; 3 (57)
-    dey                                 ; 2 (59)
-    bpl .Assign                         ; 3 (62)
-                                        ; 2 (61)
-    IF RENDER_DEBUG == 1
-    lda #$f8
-    sta COLUBK      ; light brown
-    ENDIF
-
-    ; decide if the hole card is shown
-    ldx PlyrIdx                         ; 3 (3)
-    cpx #DEALER_IDX                     ; 2 (5)
-    bne .ShowCard                       ; 2 (7)
-    ldy HoleIdx                         ; 3 (10)
-    lda Bank3_SuitHoleMatrix,y          ; 4 (14)
-    beq .ShowCard                       ; 2 (16)
-    ; don't show card
-    ; update suit graphics (preloaded on the stack)
-    tsx                                 ; 2 (18)
-    sta 2,x                             ; 4 (22)
-    ; update rank graphics
-    tya                                 ; 2 (24)
-    eor #$0f    ; invert index          ; 2 (26)
-    tay                                 ; 2 (28)
-    lda Bank3_RankHoleMatrix,y          ; 4 (32)
-    sta SpritePtrs+2                    ; 3 (35)
-    jmp .Continue                       ; 3 (38)
-.ShowCard
-
-    ; static gap graphics
-    ldx PlyrIdx                         ; 3 (3)
-    lda PlayerNumCards,x                ; 4 (7)
-    clc                                 ; 2 (9)
-    adc #Bank3_GapStatic-Bank3_GapAnim  ; 2 (11)
-    sta GapIdx                          ; 3 (14)
-
-    ; animate the card flip
-    ldx PlyrIdx                         ; 3 (17)
-    cpx AnimRow                         ; 3 (20)
-    bne .Continue                       ; 2 (22)
-    ldx AnimIdx                         ; 3 (25)
-    beq .Continue                       ; 2 (27) 
-
-    ; get the frame number
-    lda AnimConfig-1,x                  ; 4 (31)
-    and #ANIM_FRAME_MASK                ; 2 (33)
-    tay                                 ; 2 (35)
-
-    ; get the column
-    lda AnimPosition-1,x                ; 4 (39)
-    and #ANIM_COL_MASK                  ; 2 (41)
-    pha                                 ; 3 (44)    stack var = column
-    asl                                 ; 2 (46)
-    tax                                 ; 2 (48)
-
-    ; rank: update SpritePtrs
-    lda Bank3_FlipRankGfxLo,y           ; 4 (52)
-    sta SpritePtrs,x                    ; 4 (56)
-    lda Bank3_FlipRankGfxHi,y           ; 4 (60)
-    sta SpritePtrs+1,x                  ; 4 (64)
-
-    ldx PlyrIdx                         ; 3 (67)
-    lda Bank3_Mult11-1,y                ; 4 (71)
-    sec                                 ; 2 (73)
-    sbc #1                              ; 2 (75)    A = A - 1
-    clc                                 ; 2 (1)
-    adc PlayerNumCards,x                ; 4 (5)     A = A + NumCards
-    sta GapIdx                          ; 3 (8)
-
-    ; suit: update values on stack
-    tsx                                 ; 2 (10)
-    txa                                 ; 2 (12)
-    clc                                 ; 2 (14)
-    adc $1,x                            ; 4 (17)    add column number
-    tax                                 ; 2 (19)
-    lda Bank3_Bank3_FlipSuitGfxLo,y     ; 4 (23)
-    sta $2,x                            ; 4 (27)
-    pla                                 ; 4 (4)
-
-.Continue
-    ; the stack now looks like this:
-    ;  ___ ___ ___.___.___.___.___.___ ___.___
-    ; |   |col| 0   1   2   3   4   5 | x   x |
-    ; |___|___|___.___.___.___.___.___|___.___|
-    ;       ^         graphics      ^   return
-    ;       |         pointers      |   address
-    ;       sp                     sp+6
-    ;
-    ; restore the stack pointer for rts
-    tsx                                 ; 2 (2)
-    txa                                 ; 2 (4)
-    clc                                 ; 2 (6)
-    adc #6                              ; 2 (8)
-    tax                                 ; 2 (10)
-    txs                                 ; 2 (12)
-    rts                                 ; 6 (18)        ~566 cycles
-
-; -----------------------------------------------------------------------------
-; Desc:     Assigns the hand's card sprites
-; Inputs:   X register (rendering player index)
-;           PlyrIdx (rendering player index)
-; Ouputs:
-; Notes:    Must be paired with Bank3_SetupCardSprites. Requires VDEL on.
-;
-; GRP writes must happen inside time intervals specified below.
-;
-;                        43______GRP0______50    54____GRP0______61
-;           __         __/        __        \__/        __        \__
-;          |1 |       |2 |       |3 |       |4 |       |5 |       |6 |
-;          |__|       |__|       |__|       |__|       |__|       |__|
-;              \________________/    \________________/
-;             38      GRP1     45    48     GRP1      56
-;
-;          34-38      40-43      45-48      50-54      56-59      61-64
-;         104-112    120-128    136-144    152-160    168-176    184-192
-; 0         __         __         __         __         __         __        76
-; |--------|__|-------|__|-------|__|-------|__|-------|__|-------|__|--------|
-; 0   ^           ^          ^          ^          ^                        228
-;     |           |          |          |          |
-;  (1,2,3)       (4)        (5)        (6)        (7)
-; GRP 0,1,0      GRP1       GRP0       GRP1       GRP0
-;
-; GRP writes must occur between these cycle intervals:
-;   GRP 0,1,0 (writes 1,2,3)    between  0 - 34 cpu (  0 - 104 tia)
-;   GRP1 (write 4)              between 38 - 45 cpu (112 - 136 tia)
-;   GRP0 (write 5)              between 43 - 50 cpu (128 - 152 tia)
-;   GRP1 (write 6)              between 48 - 56 cpu (144 - 168 tia)
-;   GRP0 (write 7)              between 54 - 61 cpu (160 - 184 tia)
-; -----------------------------------------------------------------------------
-Bank3_RenderCardSprites SUBROUTINE
-    IF RENDER_DEBUG == 1
-    lda #$80
-    sta COLUBK      ; blue
-    ENDIF
-
-    ; adjust the stack to begin on the start of the sprite pointers
-    tsx                     ; 2 (2)     (6)
-    txa                     ; 2 (4)     (12)
-    sec                     ; 2 (6)     (18)
-    sbc #6                  ; 2 (8)     (24)
-    tax                     ; 2 (10)    (30)
-    txs                     ; 2 (12)    (36)
-
-    ; pre-cache some gap graphics
-    ldx GapIdx              ; 3 (15)    (45)
-    ldy Bank3_GapAnim,x     ; 4 (19)    (57)
-    lda Bank3_GapGfx,y      ; 4 (23)    (69)
-    sta GapLastElem         ; 3 (26)    (78)    last element
-    ldy Bank3_GapAnim+5,x   ; 4 (30)    (90)
-    ldx Bank3_GapGfx,y      ; 4 (34)    (102)   first element
-
-#if PIP_COLORS
-    ; color test
-    lda #2
-    sta ENABL
-    lda #%00110000
-    sta CTRLPF
-    lda #%01100000
-    sta PF0
-    lda #BG_COLOR           ; 2 (2)
-    sta COLUPF              ; 3 (5)
-#endif
-
-    ; draw top half of the card (rank)
-    ldy #RANK_HEIGHT-1      ; 2 (36)    (108)
-.Rank
-    ;                         Explicit write ^      Implicit write >        Display !
-    ;
-    ;                         CPU       TIA     GRP0 -> GRP0A   GRP1 -> GRP1A
-    ; -------------------------------------------------------------------------------
-    lda (SpritePtrs),y      ; 5 (67)    (201)
-    sta WSYNC               ; 3 (70)    (210)   
-    ; -----------
-    sta GRP0                ; 3 (3)     (9)     ^D1      *       *       *
-    lda (SpritePtrs+2),y    ; 5 (8)     (24)
-    sta GRP1                ; 3 (11)    (33)     D1     >D1     ^D2      *
-    lda (SpritePtrs+4),y    ; 5 (16)    (48)
-    sta GRP0                ; 3 (19)    (57)    ^D3      D1      D2     >D2
-
-#if PIP_COLORS
-    lda #$42                ; 2 (21)    (63)
-    sta COLUPF              ; 3 (24)    (72)
-    nop                     ; 2 (26)    (78)
-    nop                     ; 2 (28)    (84)
-    nop                     ; 2 (30)    (90)
-#else
-    bit $0                  ; 3 (22)    (66)
-    nop                     ; 2 (24)    (72)
-    nop                     ; 2 (26)    (78)
-    nop                     ; 2 (28)    (84)
-    nop                     ; 2 (30)    (90)
-#endif
-
-    lda (SpritePtrs+6),y    ; 5 (35)    (105)             !
-    sta GRP1                ; 3 (38)    (114)    D3     >D3     ^D4      D2
-    lda (SpritePtrs+8),y    ; 5 (43)    (129)                             !
-    sta GRP0                ; 3 (46)    (138)   ^D5      D3!     D4     >D4
-    lda (SpritePtrs+10),y   ; 5 (51)    (153)                             !
-    sta GRP1                ; 3 (54)    (162)    D5     >D5!    ^D6      D4
-    sta GRP0                ; 3 (57)    (171)   ^D6      D5      D6     >D6!
-
-    dey                     ; 2 (59)    (177)
-    bpl .Rank               ; 3 (62)    (186)
-                            ; 2 (61)    (183)
-    IF RENDER_DEBUG == 1
-    lda #$40
-    sta COLUBK      ; red
-    ENDIF
-
-    ; Pointers need to be moved from the stack to SpritePtrs. This interlaces
-    ; the pointer copies during the gap render. 
-
-    ; updating the suit graphics
-    pla                     ; 4 (65)    (195)
-    sta SpritePtrs          ; 3 (68)    (204)
-
-    ; ---- line 1 ----
-    ; draw gap graphics
-    stx GRP0                ; 3 (71)    (213)     ^D1      *       *       *
-
-    ldx GapIdx              ; 3 (74)    (222)
-    ldy Bank3_GapAnim+4,x   ; 4 (2)     (6)
-    lda Bank3_GapGfx,y      ; 4 (6)     (18)
-    ldy Bank3_GapAnim+3,x   ; 4 (10)    (30)
-    sta GRP1                ; 3 (13)    (39)       D1     >D1     ^D2      *
-
-    lda Bank3_GapGfx,y      ; 4 (17)    (51)
-    ldy Bank3_GapAnim+2,x   ; 4 (21)    (63)
-    sta GRP0                ; 3 (24)    (72)      ^D3      D1      D2     >D2
-
-    bit $0                  ; 3 (27)    (81)
-
-    lda Bank3_GapGfx,y      ; 4 (31)    (93)
-    ldy Bank3_GapAnim+1,x   ; 4 (35)    (105)               !
-    sta GRP1                ; 3 (38)    (114)      D3     >D3     ^D4      D2
-
-    lda Bank3_GapGfx,y      ; 4 (42)    (126)                               !
-    sta GRP0                ; 3 (45)    (135)     ^D5      D3!     D4     >D4
-
-    lda GapLastElem         ; 3 (48)    (144)
-    sta GRP1                ; 3 (51)    (153)      D5     >D5     ^D6      D4!
-    sta GRP0                ; 3 (54)    (162)      D5     ^D7      D6     >D6
-
-    ; updating the suit graphics
-    pla                     ; 4 (58)    (174)               !
-    sta SpritePtrs+2        ; 3 (61)    (183)                                !
-    pla                     ; 4 (65)    (195)
-    sta SpritePtrs+4        ; 3 (68)    (204)
-
-    ; ---- line 2 ----
-    ; prepare gap graphics
-    ldy Bank3_GapAnim+5,x   ; 4 (72)    (216)
-    lda Bank3_GapGfx,y      ; 4 (0)     (0)
-    ; -----------
-    sta GRP0                ; 3 (3)     (9)
-    ldy Bank3_GapAnim+4,x   ; 4 (7)     (21)
-    lda Bank3_GapGfx,y      ; 4 (11)    (33)
-    sta GRP1                ; 3 (14)    (42)       D1     >D1     ^D2      *
-    ldy Bank3_GapAnim+3,x   ; 4 (18)    (54)
-    lda Bank3_GapGfx,y      ; 4 (22)    (66)
-    sta GRP0                ; 3 (25)    (75)      ^D3      D1      D2     >D2
-
-    ldy Bank3_GapAnim+2,x   ; 4 (29)    (87)
-    lda Bank3_GapGfx,y      ; 4 (33)    (99)                !
-    ldy Bank3_GapAnim+1,x   ; 4 (37)    (111)
-    sta GRP1                ; 3 (40)    (120)      D3     >D3     ^D4      D2!
-
-    lda Bank3_GapGfx,y      ; 4 (44)    (132)
-    sta GRP0                ; 3 (47)    (141)     ^D5      D3!     D4     >D4
-
-    lda GapLastElem         ; 3 (50)    (150)                               !
-    sta GRP1                ; 3 (53)    (159)      D5     >D5     ^D6      D4
-    sta GRP0                ; 3 (56)    (168)      D5     ^D7!     D6     >D6
-
-    pla                     ; 4 (60)    (180)
-    sta SpritePtrs+6        ; 3 (63)    (189)                               !
-    pla                     ; 4 (67)    (201)
-    sta SpritePtrs+8        ; 3 (70)    (210)
-    pla                     ; 4 (74)    (222)
-    sta SpritePtrs+10       ; 3 (1)     (3)
-
-    IF RENDER_DEBUG == 1
-    lda #$80
-    sta COLUBK      ; blue
-    ENDIF
-
-    ; draw bottom half of the card (suit)
-    ldy #SUIT_HEIGHT-1      ; 2 (3)     (9)
-    bit $0                  ; 3 (6)     (18)    align cycles for 1st iteration
-.Suit
-    ;                         CPU       TIA     GRP0 -> GRP0A   GRP1 -> GRP1A
-    ; -------------------------------------------------------------------------------
-    lda (SpritePtrs),y      ; 5 (12)    (36)
-    sta GRP0                ; 3 (15)    (45)    ^D1      *       *       *
-    lda (SpritePtrs+2),y    ; 5 (20)    (60)
-    sta GRP1                ; 3 (23)    (69)     D1     >D1     ^D2      *
-    lda (SpritePtrs+4),y    ; 5 (28)    (84)
-    sta GRP0                ; 3 (31)    (93)    ^D3      D1      D2     >D2
-
-    lda (SpritePtrs+6),y    ; 5 (36)    (108)             !
-    sta GRP1                ; 3 (39)    (117)    D3     >D3     ^D4      D2!
-    lda (SpritePtrs+8),y    ; 5 (44)    (132)
-    sta GRP0                ; 3 (47)    (141)   ^D5      D3!     D4     >D4
-    lda (SpritePtrs+10),y   ; 5 (52)    (156)                             !
-    sta GRP1                ; 3 (55)    (165)    D5     >D5     ^D6      D4
-    sta GRP0                ; 3 (58)    (174)   ^D6      D5!     D6     >D6
-    sta WSYNC               ; 3 (61)    (183)                             !
-    ; -----------
-    nop                     ; 2 (2)     (6)     align cycles
-    dey                     ; 2 (4)     (12)
-    bpl .Suit               ; 3 (7)     (21)
-
-    IF RENDER_DEBUG == 1
-    lda #BG_COLOR
-    sta COLUBK      ; dark green
-    ENDIF
-
-    lda #0                  ; 2 (2)
-    sta GRP0                ; 3 (5)
-    sta GRP1                ; 3 (8)
-
-#if PIP_COLORS
-    ; color test
-    sta ENABL               ; 3 (3)
-    sta PF0                 ; 3 (3)
-    lda #BG_COLOR           ; 2 (2)
-    sta COLUPF              ; 3 (5)
-#endif
-
-    rts                     ; 6 (14)        884 cpu cycles (11.6 lines)
-
-; -----------------------------------------------------------------------------
 ; Desc:     Setup top row of chip sprites representing the pot.
 ; Inputs:
 ; Ouputs:
@@ -1487,7 +1013,7 @@ Bank3_SetSpriteOptions SUBROUTINE
     sta VDELP1
     rts
 
-    SPRITE_POSITIONING 3
+    INCLUDE_SPRITE_POSITIONING 3
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Initializes graphics registers for a message bar.
@@ -1503,6 +1029,9 @@ Bank3_ClearPlayfield SUBROUTINE
     sta WSYNC                       ; hide HMOVE line
     rts                             ; 6 (23)
 
+    ALIGN 256, FILLER_CHAR
+    PAGE_BOUNDARY_SET
+
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw a 48 pixel wide color sprite positioned at pixel 56.
 ; Inputs:   Y register (sprite height - 1)
@@ -1515,56 +1044,56 @@ Bank3_ClearPlayfield SUBROUTINE
 Bank3_DrawMessageBar SUBROUTINE
     sty Arg1
     ; preload the stack with a column of pixels from SpritePtrs+6
-    ldy #-1                     ; +2
+    ldy #-1
 .Preload
-    iny                         ; +2 (2)
-    lda (SpritePtrs+6),y        ; +5 (7)
-    pha                         ; +3 (10)
-    cpy Arg1                    ; +3 (13)
-    bcc .Preload                ; +3/2 (16)
+    iny                         ; 2 (2)
+    lda (SpritePtrs+6),y        ; 5 (7)
+    pha                         ; 3 (10)
+    cpy Arg1                    ; 3 (13)
+    bcc .Preload                ; 3 (16)
 
     sta WSYNC
-    ldy Arg1                    ; +3 (3)
-    SLEEP_56                    ; +56 (59)  burn cycles to align cycle count
-    nop                         ; +2 (61)
+    ldy Arg1                    ; 3 (3)
+    SLEEP_56                    ; 56 (59)
+    nop                         ; 2 (61)
 
 .Loop
     ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
     ; ------------------------------------------------------------------------
-    ldy Arg1                    ; +3  64  192
-    lda (SpritePtrs),y          ; +5  69  207
-    sta GRP0                    ; +3  72  216      D1     --      --     --
-    lda Bank3_MessagePalette,y  ; +4  76  228
+    ldy Arg1                    ; 3 (64) (192)
+    lda (SpritePtrs),y          ; 5 (69) (207)
+    sta GRP0                    ; 3 (72) (216)    D1     --      --     --
+    lda Bank3_MessagePalette,y  ; 4 (76) (228)
     ; -----------------------------------------------------------------------
     ;                         Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    sta.w COLUP0                ; +4   4   12
-    sta COLUP1                  ; +3   7   33
+    sta.w COLUP0                ; 4 (4) (12)
+    sta COLUP1                  ; 3 (7) (33)
 
-    lda (SpritePtrs+2),y        ; +5  12   36
-    sta GRP1                    ; +3  15   45      D1     D1      D2     --
-    lda (SpritePtrs+4),y        ; +5  20   60
-    sta GRP0                    ; +3  23   69      D3     D1      D2     D2
+    lda (SpritePtrs+2),y        ; 5 (12) (36)
+    sta GRP1                    ; 3 (15) (45)     D1     D1      D2     --
+    lda (SpritePtrs+4),y        ; 5 (20) (60)
+    sta GRP0                    ; 3 (23) (69)     D3     D1      D2     D2
 
-    lda (SpritePtrs+8),y        ; +5  28   84
-    tax                         ; +2  30   90
-    lda (SpritePtrs+10),y       ; +5  35  105
-    tay                         ; +2  37  111
-    pla                         ; +4  41  123                 !
+    lda (SpritePtrs+8),y        ; 5 (28) (84)
+    tax                         ; 2 (30) (90)
+    lda (SpritePtrs+10),y       ; 5 (35) (105)
+    tay                         ; 2 (37) (111)
+    pla                         ; 4 (41) (123)             !       
 
-    sta GRP1                    ; +3  44  132      D3     D3      D4     D2!
-    stx GRP0                    ; +3  47  141      D5     D3!     D4     D4
-    sty GRP1                    ; +3  50  150      D5     D5      D6     D4!
-    sta GRP0                    ; +3  53  159      D4*    D5!     D6     D6
-    dec Arg1                    ; +5  58  174                             !
-    bpl .Loop                   ; +3  61  183
+    sta GRP1                    ; 3 (44) (132)    D3     D3      D4     D2!
+    stx GRP0                    ; 3 (47) (141)    D5     D3!     D4     D4
+    sty GRP1                    ; 3 (50) (150)    D5     D5      D6     D4!
+    sta GRP0                    ; 3 (53) (159)    D4*    D5!     D6     D6
+    dec Arg1                    ; 5 (58) (174)                            !
+    bpl .Loop                   ; 3 (61) (183)
 
-    lda #0
-    sta GRP0
-    sta GRP1
+    lda #0                      ; 2 (62)
+    sta GRP0                    ; 3 (65)
+    sta GRP1                    ; 3 (68)
     ; 2nd write to flush VDEL
-    sta GRP0
-    sta GRP1
-    rts
+    sta GRP0                    ; 3 (71)
+    sta GRP1                    ; 3 (74)
+    rts                         ; 6 (4)
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draws a 48 pixel wide multi-color text with selectable graphics.
@@ -1602,155 +1131,155 @@ Bank3_DrawMessageBar SUBROUTINE
 ;   ldy #HEIGHT-1
 ;   jsr Bank3_DrawColorText
 ; -----------------------------------------------------------------------------
-#if 0
-Bank3_DrawColorText SUBROUTINE
-    sty DrawHeight          ; 3 (3)
-
-    ; preload the stack with SpritePtrs[6] column of pixels
-
-    ldy #-1                 ; 2 (5)
-.Preload
-    iny                     ; 2 (2)
-    lda (SpritePtrs+6),y    ; 5 (7)
-    pha                     ; 3 (10)
-    iny                     ; 2 (12)
-    lda (SpritePtrs+6),y    ; 5 (17)
-    pha                     ; 3 (20)
-    cpy DrawHeight          ; 3 (23)
-    bcc .Preload            ; 3 (26)
-
-    sta WSYNC               ; align cycle count
-    ; remove extra element caused by preload
-    bne .AdjustStack        ; 2 (2)    3 (3)
-    nop                     ; 2 (4)
-    dc.b $24  ; bit         ; 3 (7)
-.AdjustStack
-    pla                     ;          4 (7)
-
-Bank3_DrawColorTextJump
-    SLEEP_54                ; 54 (61)   align cycle count
-
-.Loop
-    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    ; ------------------------------------------------------------------------
-    ldy DrawHeight          ; 3 (64) (192)
-    lda (SpritePtrs),y      ; 5 (69) (207)
-    sta GRP0                ; 3 (72) (216)     D1     --      --     --
-    lda Bank3_TextPalette,y ; 4 (0)  (0)
-    ; -----------------------------------------------------------------------
-    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    sta.w COLUP0            ; 4 (4)  (12)
-    sta COLUP1              ; 3 (7)  (21)
-
-    lda (SpritePtrs+2),y    ; 5 (12) (36)
-    sta GRP1                ; 3 (15) (45)      D1     D1      D2     --
-    lda (SpritePtrs+4),y    ; 5 (20) (60)
-    sta GRP0                ; 3 (23) (69)      D3     D1      D2     D2
-
-    lda (SpritePtrs+8),y    ; 5 (28) (84)
-    tax                     ; 2 (30) (90)
-    lda (SpritePtrs+10),y   ; 5 (35) (105)
-    tay                     ; 2 (37) (111)
-    pla                     ; 4 (41) (123)             !
-
-    sta GRP1                ; 3 (44) (132)     D3     D3      D4     D2!
-    stx GRP0                ; 3 (47) (141)     D5     D3!     D4     D4
-    sty GRP1                ; 3 (50) (150)     D5     D5      D6     D4!
-    sta GRP0                ; 3 (53) (159)     D4*    D5!     D6     D6
-    dec DrawHeight          ; 5 (58) (174)                            !
-    bpl .Loop               ; 3 (61) (183)
-                            ; 2 (60) (180)
-    ; flush delayed values
-    lda #0                  ; 2 (62) (186)
-    sta GRP0                ; 3 (65) (195)
-    sta GRP1                ; 3 (68) (204)
-    sta GRP0                ; 3 (71) (213)
-    rts                     ; 6 (1) (3)
-#endif
-#if 0
-Bank3_DrawColorText SUBROUTINE
-    sty DrawHeight          ; 3 (3)
-
-    ; preload the stack with SpritePtrs[6] column of pixels
-
-    ldy #-1                 ; 2 (5)
-.Preload
-    iny                     ; 2 (2)
-    lda (SpritePtrs+6),y    ; 5 (7)
-    pha                     ; 3 (10)
-    iny                     ; 2 (12)
-    lda (SpritePtrs+6),y    ; 5 (17)
-    pha                     ; 3 (20)
-    cpy DrawHeight          ; 3 (23)
-    bcc .Preload            ; 3 (26)
-
-    sta WSYNC               ; align cycle count
-    ; remove extra element caused by preload
-    bne .AdjustStack        ; 2 (2)    3 (3)
-    nop                     ; 2 (4)
-    dc.b $24  ; bit         ; 3 (7)
-.AdjustStack
-    pla                     ;          4 (7)
-
-Bank3_DrawColorTextJump
-    lda #<Bank3_TextPalette ; 2 (9)
-    sta PalettePtr          ; 3 (12)
-    lda #>Bank3_TextPalette ; 2 (14)
-    sta PalettePtr+1        ; 3 (17)
-    ldy DrawHeight          ; 3 (20)
-    sty TIM64T              ; 4 (24)
-
-    SLEEP_36                ; 36 (60)   align cycle count
-
-.Loop
-    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    ; ------------------------------------------------------------------------
-    ldy INTIM               ; 4 (64) (192)
-    lda (SpritePtrs),y      ; 5 (69) (207)
-    sta GRP0                ; 3 (72) (216)     D1     --      --     --
-    lda (PalettePtr),y      ; 5 (1)  (3)
-    ; -----------------------------------------------------------------------
-    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
-    sta COLUP0              ; 3 (4)  (12)
-    sta COLUP1              ; 3 (7)  (21)
-
-    lda (SpritePtrs+2),y    ; 5 (12) (36)
-    sta GRP1                ; 3 (15) (45)      D1     D1      D2     --
-    lda (SpritePtrs+4),y    ; 5 (20) (60)
-    sta GRP0                ; 3 (23) (69)      D3     D1      D2     D2
-
-    lda (SpritePtrs+8),y    ; 5 (28) (84)
-    tax                     ; 2 (30) (90)
-    lda (SpritePtrs+10),y   ; 5 (35) (105)
-    tay                     ; 2 (37) (111)
-
-    nop                     ; 2 (39) (117)
-    nop                     ; 2 (41) (123)
-
-    sta GRP1                ; 3 (44) (132)     D3     D3      D4     D2!
-    stx GRP0                ; 3 (47) (141)     D5     D3!     D4     D4
-    sty GRP1                ; 3 (50) (150)     D5     D5      D6     D4!
-    sta GRP0                ; 3 (53) (159)     D4*    D5!     D6     D6
-
-    ldy INTIM               ; 4 (57) (171)
-    bpl .Loop               ; 3 (60) (180)
-                            ; 2 (59) (177)
-
-    ; flush delayed values
-    lda #0                  ; 2 (61) (183)
-    sta GRP0                ; 3 (64) (192)
-    sta GRP1                ; 3 (67) (201)
-    sta GRP0                ; 3 (70) (210)
-
-    ldy DrawHeight
-.Pull
-    pla
-    dey
-    bpl .Pull
-
-    rts                     ; 6 (0) (0)
-#endif
-
+;#if 0
+;Bank3_DrawColorText SUBROUTINE
+;    sty DrawHeight          ; 3 (3)
+;
+;    ; preload the stack with SpritePtrs[6] column of pixels
+;
+;    ldy #-1                 ; 2 (5)
+;.Preload
+;    iny                     ; 2 (2)
+;    lda (SpritePtrs+6),y    ; 5 (7)
+;    pha                     ; 3 (10)
+;    iny                     ; 2 (12)
+;    lda (SpritePtrs+6),y    ; 5 (17)
+;    pha                     ; 3 (20)
+;    cpy DrawHeight          ; 3 (23)
+;    bcc .Preload            ; 3 (26)
+;
+;    sta WSYNC               ; align cycle count
+;    ; remove extra element caused by preload
+;    bne .AdjustStack        ; 2 (2)    3 (3)
+;    nop                     ; 2 (4)
+;    dc.b $24  ; bit         ; 3 (7)
+;.AdjustStack
+;    pla                     ;          4 (7)
+;
+;Bank3_DrawColorTextJump
+;    SLEEP_54                ; 54 (61)   align cycle count
+;
+;.Loop
+;    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+;    ; ------------------------------------------------------------------------
+;    ldy DrawHeight          ; 3 (64) (192)
+;    lda (SpritePtrs),y      ; 5 (69) (207)
+;    sta GRP0                ; 3 (72) (216)     D1     --      --     --
+;    lda Bank3_TextPalette,y ; 4 (0)  (0)
+;    ; -----------------------------------------------------------------------
+;    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+;    sta.w COLUP0            ; 4 (4)  (12)
+;    sta COLUP1              ; 3 (7)  (21)
+;
+;    lda (SpritePtrs+2),y    ; 5 (12) (36)
+;    sta GRP1                ; 3 (15) (45)      D1     D1      D2     --
+;    lda (SpritePtrs+4),y    ; 5 (20) (60)
+;    sta GRP0                ; 3 (23) (69)      D3     D1      D2     D2
+;
+;    lda (SpritePtrs+8),y    ; 5 (28) (84)
+;    tax                     ; 2 (30) (90)
+;    lda (SpritePtrs+10),y   ; 5 (35) (105)
+;    tay                     ; 2 (37) (111)
+;    pla                     ; 4 (41) (123)             !
+;
+;    sta GRP1                ; 3 (44) (132)     D3     D3      D4     D2!
+;    stx GRP0                ; 3 (47) (141)     D5     D3!     D4     D4
+;    sty GRP1                ; 3 (50) (150)     D5     D5      D6     D4!
+;    sta GRP0                ; 3 (53) (159)     D4*    D5!     D6     D6
+;    dec DrawHeight          ; 5 (58) (174)                            !
+;    bpl .Loop               ; 3 (61) (183)
+;                            ; 2 (60) (180)
+;    ; flush delayed values
+;    lda #0                  ; 2 (62) (186)
+;    sta GRP0                ; 3 (65) (195)
+;    sta GRP1                ; 3 (68) (204)
+;    sta GRP0                ; 3 (71) (213)
+;    rts                     ; 6 (1) (3)
+;#endif
+;#if 0
+;Bank3_DrawColorText SUBROUTINE
+;    sty DrawHeight          ; 3 (3)
+;
+;    ; preload the stack with SpritePtrs[6] column of pixels
+;
+;    ldy #-1                 ; 2 (5)
+;.Preload
+;    iny                     ; 2 (2)
+;    lda (SpritePtrs+6),y    ; 5 (7)
+;    pha                     ; 3 (10)
+;    iny                     ; 2 (12)
+;    lda (SpritePtrs+6),y    ; 5 (17)
+;    pha                     ; 3 (20)
+;    cpy DrawHeight          ; 3 (23)
+;    bcc .Preload            ; 3 (26)
+;
+;    sta WSYNC               ; align cycle count
+;    ; remove extra element caused by preload
+;    bne .AdjustStack        ; 2 (2)    3 (3)
+;    nop                     ; 2 (4)
+;    dc.b $24  ; bit         ; 3 (7)
+;.AdjustStack
+;    pla                     ;          4 (7)
+;
+;Bank3_DrawColorTextJump
+;    lda #<Bank3_TextPalette ; 2 (9)
+;    sta PalettePtr          ; 3 (12)
+;    lda #>Bank3_TextPalette ; 2 (14)
+;    sta PalettePtr+1        ; 3 (17)
+;    ldy DrawHeight          ; 3 (20)
+;    sty TIM64T              ; 4 (24)
+;
+;    SLEEP_36                ; 36 (60)   align cycle count
+;
+;.Loop
+;    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+;    ; ------------------------------------------------------------------------
+;    ldy INTIM               ; 4 (64) (192)
+;    lda (SpritePtrs),y      ; 5 (69) (207)
+;    sta GRP0                ; 3 (72) (216)     D1     --      --     --
+;    lda (PalettePtr),y      ; 5 (1)  (3)
+;    ; -----------------------------------------------------------------------
+;    ;                    Cycles CPU  TIA     GRP0   GRP0A   GRP1   GRP1A
+;    sta COLUP0              ; 3 (4)  (12)
+;    sta COLUP1              ; 3 (7)  (21)
+;
+;    lda (SpritePtrs+2),y    ; 5 (12) (36)
+;    sta GRP1                ; 3 (15) (45)      D1     D1      D2     --
+;    lda (SpritePtrs+4),y    ; 5 (20) (60)
+;    sta GRP0                ; 3 (23) (69)      D3     D1      D2     D2
+;
+;    lda (SpritePtrs+8),y    ; 5 (28) (84)
+;    tax                     ; 2 (30) (90)
+;    lda (SpritePtrs+10),y   ; 5 (35) (105)
+;    tay                     ; 2 (37) (111)
+;
+;    nop                     ; 2 (39) (117)
+;    nop                     ; 2 (41) (123)
+;
+;    sta GRP1                ; 3 (44) (132)     D3     D3      D4     D2!
+;    stx GRP0                ; 3 (47) (141)     D5     D3!     D4     D4
+;    sty GRP1                ; 3 (50) (150)     D5     D5      D6     D4!
+;    sta GRP0                ; 3 (53) (159)     D4*    D5!     D6     D6
+;
+;    ldy INTIM               ; 4 (57) (171)
+;    bpl .Loop               ; 3 (60) (180)
+;                            ; 2 (59) (177)
+;
+;    ; flush delayed values
+;    lda #0                  ; 2 (61) (183)
+;    sta GRP0                ; 3 (64) (192)
+;    sta GRP1                ; 3 (67) (201)
+;    sta GRP0                ; 3 (70) (210)
+;
+;    ldy DrawHeight
+;.Pull
+;    pla
+;    dey
+;    bpl .Pull
+;
+;    rts                     ; 6 (0) (0)
+;#endif
+;
 ; -----------------------------------------------------------------------------
 ; Desc:     Draws 6 medium spaced sprites in a row.
 ; Inputs:   Y register (sprite height - 1)
@@ -1792,116 +1321,12 @@ Bank3_Draw6Sprites SUBROUTINE
                             ; 2 (63)
     rts                     ; 6 (69)
 
-; -----------------------------------------------------------------------------
-; Desc:     Compute the Log2 of A. (Returns highest bit set.)
-; Inputs:   A register (value)
-; Ouputs:   X register (result)
-;           1-8 when A>0, 0 otherwise.
-; Notes:
-;   Max cycles: 67 = 7 + (7 x 7 loops) - 1 + 12 (jsr & rts)
-; -----------------------------------------------------------------------------
-Bank3_Log2 SUBROUTINE
-    ldx #0          ; 3 (3)
-    tay             ; 2 (2)
-    cmp #0          ; 2 (5)
-    beq .Return     ; 2 (7)
-.Loop
-    inx             ; 2 (2)
-    lsr             ; 2 (4)
-    bne .Loop       ; 3 (7)
-    tya             ; 2 (2)
-.Return
-    rts             ; 6 (6)
+    PAGE_BOUNDARY_CHECK "Bank3_Draw* kernels crossed a page boundary"
 
     INCLUDE_MENU_SUBS 3
 
-; map rank index to a sprite graphic
-Bank3_CardRankSprite
-    dc.b <BlankCard
-    dc.b <AceSprite,    <Bank3_Rank2, <Bank3_Rank3
-    dc.b <Bank3_Rank4,  <Bank3_Rank5, <Bank3_Rank6
-    dc.b <Bank3_Rank7,  <Bank3_Rank8, <Bank3_Rank9
-    dc.b <Bank3_Rank10, <JackSprite,  <QueenSprite
-    dc.b <KingSprite,   <BlankCard,   <BlankCard
-
-; map suit index to a sprite graphic
-Bank3_CardSuitSprite
-    dc.b <DiamondSprite, <ClubSprite, <HeartSprite, <SpadeSprite
-
-; Map hole card to a sprite graphic using a decision table:
-;   Three data points must match to determine of the hole card is hidden.
-;       PlayerIdx = Dealer, Number of cards >= 2, hole flag = 1
-;   Bit 0-1:  player index
-;   Bit 2:    num cards >= 2 flag
-;   Bit 3:    hole flag bit (from CurrState)
-;
-;     P1    P2    DLR   (unused)
-;   0000, 0001,  0010,  0011
-;   0100, 0101,  0110,  0111
-;   1000, 1001,  1010,  1011
-;   1100, 1101, (1110), 1111
-;                  |
-;                  +---------------- (hole card shown)
-;
-; The indexing of the rank matrix is inverted (eor $0f) to save ROM space
-; by mirroring and overlapping the common data.
-;
-Bank3_RankHoleMatrix
-    dc.b 0, <RankBack, 0, 0
-Bank3_SuitHoleMatrix
-    ds.b 14, 0
-    dc.b <SuitBack
-
-Bank3_NumCardsFlag      ; indexed by number of cards
-    dc.b 0, 0, %100, %100, %100, %100, %100
-
-; -----------------------------------------------------------------------------
-; ANIMATION DATA
-; -----------------------------------------------------------------------------
-; Sequence record:
-;   Position    1 byte
-;       Row:        bits 3-7
-;       Column:     bits 0-2
-;   State:     1 byte
-;       NumLoops:   bits: 5-7
-;       NumFrames   bits: 0-4   (disables the animation)
-;   Frames[]:   2 bytes each
-;       Pointer
-;
-; Sequences array[]:
-;   Pointer -> Sequence
-;   Pointer -> Sequence
-;   Pointer -> Sequence
-;   ...
-;
-BEGIN SET *
-
-Bank3_FlipRankSeq
-    dc.b [0 << 3] | 2   ; row, column
-    dc.b [1 << 5] | 4   ; loops, frames
-Bank3_FlipRankGfxLo
-    dc.b 0, <Bank3_FlipRank3, <Bank3_FlipRank2, <Bank3_FlipRank1, <Bank3_FlipRank0
-Bank3_FlipRankGfxHi
-    dc.b 0, >Bank3_FlipRank3, >Bank3_FlipRank2, >Bank3_FlipRank1, >Bank3_FlipRank0
-
-;Bank3_Bank3_FlipSuitSeq
-;    dc.b [0 << 3] | 2
-;    dc.b [1 << 5] | 4
-Bank3_Bank3_FlipSuitGfxLo
-    dc.b 0, <Bank3_FlipSuit3, <Bank3_FlipSuit2, <Bank3_FlipSuit1, <Bank3_FlipSuit0
-
-ANIM_ID_NONE                = 0
-ANIM_ID_FLIP_CARD           = 1
-Bank3_Sequences
-    dc.b 0                  ; ANIM_ID_NONE
-    dc.b <Bank3_FlipRankSeq ; ANIM_ID_FLIP_CARD
-
-    IF >BEGIN != >*
-        ECHO "(5) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
-    ENDIF
-
     include "bank3/gfx/help.asm"        ; must reside within a single page
-    include "../shared/lib/animation.asm"
+    include "../atarilib/lib/animation.asm"
 
 #if 0
 ; -----------------------------------------------------------------------------
@@ -2022,53 +1447,704 @@ AnimationTick SUBROUTINE
     rts
 #endif
 
-    include "bank3/gfx/options.asm"
-    include "bank3/gfx/sprites3.asm"
+Bank3_SetupIndexes SUBROUTINE
+    ; set up an index into SuitRuleTable and RankRuleTable
+    lda #0                          ; 2 (2)
+    ldy CurrState                   ; 3 (5)
+    bpl .Skip                       ; 2 (7)
+    ora #RULE_HOLE_MASK             ; 2 (9)
+.Skip
+    ldy PlayerNumCards+DEALER_IDX   ; 4 (13)
+    ora Bank3_NumCardsFlag,y        ; 4 (17)
+    ora #DEALER_IDX                 ; 2 (19)
+    sta HoleIdx                     ; 3 (22)
+
+    ; search for any card animations
+    ldx #ANIM_QUEUE_LEN
+.Search
+    lda AnimID-1,x
+    cmp #ANIM_ID_FLIP_CARD
+    bne .Next
+    stx AnimIdx
+    lda AnimPosition-1,x    ; 11111xxx
+    lsr
+    lsr
+    lsr
+    sta AnimRow             ; xxx11112
+    jmp .Found
+.Next
+    dex
+    bne .Search
+    lda #$ff
+    sta AnimRow
+    stx AnimIdx
+.Found
+	rts
 
 ; -----------------------------------------------------------------------------
-    ORG BANK3_ORG + $b00
-    RORG BANK3_RORG + $b00
-    include "bank3/gfx/sprites1.asm"
+; Desc:     Resets sprites to blank state. This is the fixed time part of
+;           card initialization.
+; Inputs:   X register (current hand)
+; Ouputs:
+; -----------------------------------------------------------------------------
+Bank3_ResetCardSprites SUBROUTINE
+#if 0
+    ; assign card colors (active/inactive, dealer is always active)
+    lda PlyrIdx
+    asl
+    asl
+    ora CurrPlayer
+    tay
+    lda Bank3_ColorMatrix,y
+    sta COLUP0
+    sta COLUP1
+#endif
+
+#if 0
+    lda #>BlankCard
+    sta SpritePtrs+1
+    sta SpritePtrs+3
+    sta SpritePtrs+5
+    sta SpritePtrs+7
+    sta SpritePtrs+9
+    sta SpritePtrs+11
+#endif
+    rts
 
 ; -----------------------------------------------------------------------------
-    ORG BANK3_ORG + $c00
-    RORG BANK3_RORG + $c00
+; Desc:     Assigns the hand's card sprites. Ranks are loaded into SpritePtrs
+;           and suits loaded on the stack .
+; Inputs:   PlyrIdx (rendering player index)
+; Ouputs:
+; Notes:    Must be paired with Bank3_RenderCardSprites.
+;
+; Card Color Matrix:
+; Assign the card colors for active and inactive highlighting.
+;
+;      Curr       CurrHand
+;     Player    00   01   10
+;             .--------------.
+;         00  |  0 |  1 |  0 |
+;         01  |  1 |  0 |  1 |
+;         10  |  0 |  1 |  0 |
+;             '--------------'
+;
+;             |     CurrPlayer
+;      Hand   | Player0 Player1 Dealer
+;   .---------|------------------------.
+;   | Player0 |   W    |   G   |   W   |
+;   | Player1 |   G    |   W   |   G   |  Colors: W=white, G=gray
+;   | Dealer  |   W    |   W   |   W   |
+;   '----------------------------------'
+;
+; Cards:       0       1       2       3       4       5
+;            ____    ____    ____    ____    ____    ____
+;   Ranks   |    |  |    |  |    |  |    |  |    |  |    |
+;           |____|  |____|  |____|  |____|  |____|  |____|
+;            ____    ____    ____    ____    ____    ____
+;   Gap     |____|  |____|  |____|  |____|  |____|  |____|
+;            ____    ____    ____    ____    ____    ____
+;   Suits   |    |  |    |  |    |  |    |  |    |  |    |
+;           |____|  |____|  |____|  |____|  |____|  |____|
+;
+; Assign these values:
+;   1. card color (active/inactive)
+;   2. suit and rank graphics
+;   3. hole card graphics
+;   4. card flip animation graphics
+; -----------------------------------------------------------------------------
+RENDER_DEBUG = 0
+#if 1
+Bank3_SetupCardSprites SUBROUTINE       ; 6 (6)
+    lda #>BlankCard                     ; 2 (8)
+    sta SpritePtrs+1                    ; 3 (11)
+    sta SpritePtrs+3                    ; 3 (14)
+    sta SpritePtrs+5                    ; 3 (17)
+    sta SpritePtrs+7                    ; 3 (20)
+    sta SpritePtrs+9                    ; 3 (23)
+    sta SpritePtrs+11                   ; 3 (26)
 
-BEGIN SET *
-    ; sprites2.h contains chips, denomination, and dashboard sprites
-    include "bank3/gfx/sprites2.asm"    ; must reside within a single page
+    ; set up an index into PlayerCards
+    ldy PlyrIdx                         ; 3 (29)
+    ldx Bank3_Mult6+1,y                 ; 4 (33)
+    stx CardIdx                         ; 3 (36)
 
-    IF >BEGIN != >*
-        ECHO "(1) Page boundary crossed:",BEGIN,"to",*,":","bytes",(*-BEGIN)d
+    ; set up the default graphics pointers
+    clc                                 ; 2 (38)
+    ldy #NUM_VISIBLE_CARDS-1            ; 2 (40)    current card index
+.Loop
+    lda PlayerCards-1,x                 ; 4 (4)
+    bne .ValidCard                      ; 3 (7)
+
+    ; blank card for rank and suit
+    ldx Bank3_Mult2,y                   ; 4 [4]
+    lda #<BlankCard                     ; 2 [6]
+    sta SpritePtrs,x                    ; 4 [10]
+    jmp .Next                           ; 3 [13]
+
+.ValidCard
+    ; assign rank graphics: rank graphics go to SpritePtrs
+    and #CARD_RANK_MASK                 ; 2 (9)
+    tax                                 ; 2 (11)
+    lda Bank3_CardRankGfx,x             ; 4 (15)    get a LSB pointer to graphics
+    ldx Bank3_Mult2,y                   ; 4 (19)
+    sta SpritePtrs,x                    ; 4 (23)    ranks put in SpritePtrs
+
+    ; assign suit: suit graphics to the stack
+    ldx CardIdx                         ; 3 (26)
+    lda PlayerCards-1,x                 ; 4 (30)
+    and #CARD_SUIT_MASK                 ; 2 (32)
+    lsr                                 ; 2 (34)
+    lsr                                 ; 2 (36)
+    lsr                                 ; 2 (38)
+    lsr                                 ; 2 (40)
+    tax                                 ; 2 (42)
+    lda Bank3_CardSuitGfx,x             ; 4 (46)    get a LSB pointer to graphics
+.Next
+    pha                                 ; 3 (49)
+
+    dec CardIdx                         ; 5 (54)
+    ldx CardIdx                         ; 3 (57)
+
+    dey                                 ; 2 (59)
+    bpl .Loop                           ; 3 (62)
+
+    ; determine if the dealer's hole card is face up or face down
+    ldx PlyrIdx                         ; 3 (3)
+    cpx #DEALER_IDX                     ; 2 (5)
+    bne .ShowCard                       ; 2 (7)
+    ldy HoleIdx                         ; 3 (10)
+    lda Bank3_SuitRuleTable,y           ; 4 (14)
+    beq .ShowCard                       ; 2 (16)
+
+    ; card is face down (i.e. static). update suit and rank graphics
+    tsx                                 ; 2 [2]
+    sta 2,x                             ; 4 [6]
+    ; update rank graphics
+    tya                                 ; 2 [8]
+    eor #$0f    ; invert index          ; 2 [10]
+    tay                                 ; 2 [12]
+    lda Bank3_RankRuleTable,y           ; 4 [16]
+    lda #<RankBack                      ; 2 [18]
+    sta SpritePtrs+2                    ; 3 [21]
+
+.StaticGap
+    ; static gap graphics
+    ldx PlyrIdx                         ; 3 [24]
+    lda PlayerNumCards,x                ; 4 [28]
+    clc                                 ; 2 [30]
+    adc #Bank3_GapStatic-Bank3_GapAnim  ; 2 [32]
+    sta GapIdx                          ; 3 [35]
+    jmp .Continue                       ; 3 [38]
+
+.ShowCard
+    ; check if there's an animating card
+    cpx AnimRow                         ; 3 (19)
+    bne .StaticGap                      ; 2 (21)
+    ldx AnimIdx                         ; 3 (24)
+    beq .StaticGap                      ; 2 (26) 
+
+    ; get the frame number
+    lda AnimConfig-1,x                  ; 4 (30)
+    and #ANIM_FRAME_MASK                ; 2 (32)
+    tay                                 ; 2 (34)
+
+    ; get the column
+    lda AnimPosition-1,x                ; 4 (38)
+    and #ANIM_COL_MASK                  ; 2 (40)
+    pha                                 ; 3 (43)    stack var = column
+    asl                                 ; 2 (45)
+    tax                                 ; 2 (47)
+
+    ; rank: update SpritePtrs
+    lda Bank3_FlipRankGfxLo,y           ; 4 (51)
+    sta SpritePtrs,x                    ; 4 (55)
+    lda Bank3_FlipRankGfxHi,y           ; 4 (59)
+    sta SpritePtrs+1,x                  ; 4 (63)
+
+    ; animating gap graphics is in sync with card flip animation
+    ldx PlyrIdx                         ; 3 (66)
+    lda Bank3_Mult11-1,y                ; 4 (70)    size of row = 11
+    sec                                 ; 2 (72)
+    sbc #1                              ; 2 (74)    A = A - 1
+    clc                                 ; 2 (76)
+    adc PlayerNumCards,x                ; 4 (80)     A = A + NumCards
+    sta GapIdx                          ; 3 (83)
+
+    ; suit: update values on stack
+    tsx                                 ; 2 (85)
+    txa                                 ; 2 (87)
+    clc                                 ; 2 (89)
+    adc $1,x                            ; 4 (93)    add column number
+    tax                                 ; 2 (95)
+    lda Bank3_Bank3_FlipSuitGfxLo,y     ; 4 (99)
+    sta $2,x                            ; 4 (103)
+    pla                                 ; 4 (107)
+
+.Continue
+    ; the stack now looks like this:
+    ;  ___ ___ ___.___.___.___.___.___ ___.___
+    ; |   |col| 0   1   2   3   4   5 | x   x |
+    ; |___|___|___.___.___.___.___.___|___.___|
+    ;       ^         graphics      ^   return
+    ;       |         pointers      |   address
+    ;       sp                     sp+6
+    ;
+    ; restore the stack pointer for rts
+    tsx                                 ; 2 (109)
+    txa                                 ; 2 (111)
+    clc                                 ; 2 (113)
+    adc #6                              ; 2 (115)
+    tax                                 ; 2 (117)
+    txs                                 ; 2 (119)
+
+    rts                                 ; 6 (125)
+    ; total max cycles: 536 = 40 + (62*6)-1 + 125
+
+#else
+Bank3_SetupCardSprites SUBROUTINE       ; 6 (6)
+    IF RENDER_DEBUG == 1
+    lda #$40        ; red
+    sta COLUBK
     ENDIF
 
-; When there is no active card flip animation, the static table is
-; used, otherwise the animation is used.
-;       animation vs no animation
-;       number of cards
-;       card slot empty vs occuped
-;       animation row, animation column
-;       rendering row, rendering column
-;       current animation frame progress
-; slots are read from right to left
-Bank3_GapAnim
-    ; animating cards
-    dc.b 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0    ; frame 1
-    dc.b 5, 5, 5, 5, 5, 2, 0, 0, 0, 0, 0    ; frame 2
-    dc.b 5, 5, 5, 5, 5, 3, 0, 0, 0, 0, 0    ; frame 3
-    dc.b 5, 5, 5, 5, 5, 4, 0, 0, 0, 0, 0    ; frame 4
-    ; static cards
-Bank3_GapStatic
-    dc.b 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0 ; blank/solid
+    ; assign high byte
+    lda #>BlankCard                     ; 2 (8)
+    sta SpritePtrs+1                    ; 3 (11)
+    sta SpritePtrs+3                    ; 3 (14)
+    sta SpritePtrs+5                    ; 3 (17)
+    sta SpritePtrs+7                    ; 3 (20)
+    sta SpritePtrs+9                    ; 3 (23)
+    sta SpritePtrs+11                   ; 3 (26)
 
-; Gap graphics data: indexed by Bank3_GapAnim
-Bank3_GapGfx
-    dc.b %11111111  ; 0
-    dc.b %00111110  ; 1
-    dc.b %00010000  ; 2
-    dc.b %01111100  ; 3
-    dc.b %11111111  ; 4
-    dc.b %00000000  ; 5
+    ; set up the end index into PlayerCards
+    ldy PlyrIdx                         ; 3 (29)
+    ldx Bank3_Mult6+1,y                 ; 4 (33)
+    stx CardIdx                         ; 3 (36)
+
+    ; set up the default graphics pointers
+    clc                                 ; 2 (38)
+    ldy #NUM_VISIBLE_CARDS-1            ; 2 (40)    current card index
+.Assign
+    ; assign rank
+    lda PlayerCards-1,x                 ; 4 (4)
+    pha                                 ; 3 (7)     stack temp = card
+    and #CARD_RANK_MASK                 ; 2 (9)
+    tax                                 ; 2 (11)
+    lda Bank3_CardRankGfx,x             ; 4 (15)    get the graphics LSB
+    ldx Bank3_Mult2,y                   ; 4 (19)
+    sta SpritePtrs,x                    ; 4 (23)    ranks put in SpritePtrs
+
+    ; assign suit
+    pla                                 ; 4 (27)    A = card
+    bne .NotEmpty                       ; 3 (30)  
+    lda #<BlankCard                     ; 2 [2]
+    jmp .SaveSuit                       ; 3 [5]
+.NotEmpty
+    and #CARD_SUIT_MASK                 ; 2 (32)
+    lsr                                 ; 2 (34)
+    lsr                                 ; 2 (36)
+    lsr                                 ; 2 (38)
+    lsr                                 ; 2 (40)
+    tax                                 ; 2 (42)
+    lda Bank3_CardSuitGfx,x             ; 4 (46)    get the graphics LSB
+.SaveSuit
+    pha                                 ; 3 (49)
+
+    ; decrement ending and current card indexes
+    dec CardIdx                         ; 5 (54)
+    ldx CardIdx                         ; 3 (57)
+
+    dey                                 ; 2 (59)
+    bpl .Assign                         ; 3 (62)
+
+    IF RENDER_DEBUG == 1
+    lda #$f8
+    sta COLUBK      ; light brown
+    ENDIF
+
+    ; decide if the hole card is shown
+    ldx PlyrIdx                         ; 3 (3)
+    cpx #DEALER_IDX                     ; 2 (5)
+    bne .ShowCard                       ; 2 (7)
+    ldy HoleIdx                         ; 3 (10)
+    lda Bank3_SuitRuleTable,y           ; 4 (14)
+    beq .ShowCard                       ; 2 (16)
+
+    ; card is facing down. preload graphics to the stack
+    tsx                                 ; 2 [2]
+    sta 2,x                             ; 4 [6]
+    ; update rank graphics
+    tya                                 ; 2 [8]
+    eor #$0f    ; invert index          ; 2 [10]
+    tay                                 ; 2 [12]
+    lda Bank3_RankRuleTable,y           ; 4 [16]
+    sta SpritePtrs+2                    ; 3 [19]
+    jmp .Continue                       ; 3 [22]
+
+.ShowCard
+    ; static gap graphics
+    ldx PlyrIdx                         ; 3 (19)
+    lda PlayerNumCards,x                ; 4 (23)
+    clc                                 ; 2 (25)
+    adc #Bank3_GapStatic-Bank3_GapAnim  ; 2 (27)
+    sta GapIdx                          ; 3 (30)
+
+    ; animate the card flip (AnimRow contains Player ID)
+    ldx PlyrIdx                         ; 3 (33)
+    cpx AnimRow                         ; 3 (36)
+    bne .Continue                       ; 2 (38)
+    ldx AnimIdx                         ; 3 (41)
+    beq .Continue                       ; 2 (43) 
+
+    ; get the frame number
+    lda AnimConfig-1,x                  ; 4 (47)
+    and #ANIM_FRAME_MASK                ; 2 (49)
+    tay                                 ; 2 (51)
+
+    ; get the column
+    lda AnimPosition-1,x                ; 4 (55)
+    and #ANIM_COL_MASK                  ; 2 (57)
+    pha                                 ; 3 (60)    stack var = column
+    asl                                 ; 2 (62)
+    tax                                 ; 2 (64)
+
+    ; rank: update SpritePtrs
+    lda Bank3_FlipRankGfxLo,y           ; 4 (68)
+    sta SpritePtrs,x                    ; 4 (72)
+    lda Bank3_FlipRankGfxHi,y           ; 4 (76)
+    sta SpritePtrs+1,x                  ; 4 (80)
+
+    ldx PlyrIdx                         ; 3 (83)
+    lda Bank3_Mult11-1,y                ; 4 (87)
+    sec                                 ; 2 (89)
+    sbc #1                              ; 2 (91)    A = A - 1
+    clc                                 ; 2 (93)
+    adc PlayerNumCards,x                ; 4 (97)     A = A + NumCards
+    sta GapIdx                          ; 3 (100)
+
+    ; suit: update values on stack
+    tsx                                 ; 2 (102)
+    txa                                 ; 2 (104)
+    clc                                 ; 2 (106)
+    adc $1,x                            ; 4 (110)    add column number
+    tax                                 ; 2 (112)
+    lda Bank3_Bank3_FlipSuitGfxLo,y     ; 4 (116)
+    sta $2,x                            ; 4 (120)
+    pla                                 ; 4 (124)
+
+.Continue
+    ; the stack now looks like this:
+    ;  ___ ___ ___.___.___.___.___.___ ___.___
+    ; |   |col| 0   1   2   3   4   5 | x   x |
+    ; |___|___|___.___.___.___.___.___|___.___|
+    ;       ^         graphics      ^   return
+    ;       |         pointers      |   address
+    ;       sp                     sp+6
+    ;
+    ; restore the stack pointer for rts
+    tsx                                 ; 2 (126)
+    txa                                 ; 2 (128)
+    clc                                 ; 2 (130)
+    adc #6                              ; 2 (132)
+    tax                                 ; 2 (134)
+    txs                                 ; 2 (136)
+
+    rts                                 ; 6 (142)
+    ; total max cycles: 553 = 40 + (62*6)-1 + 142
+#endif
+
+; -----------------------------------------------------------------------------
+    ORG BANK3_ORG + $900, FILLER_CHAR
+    RORG BANK3_RORG + $900
+
+    PAGE_BOUNDARY_SET
+
+; -----------------------------------------------------------------------------
+; Desc:     Draws a row of cards.
+; Inputs:   X register (rendering player index)
+;           PlyrIdx (rendering player index)
+; Ouputs:
+; Notes:    Must be paired with Bank3_SetupCardSprites. Requires VDEL on.
+;
+; GRP writes must happen inside time intervals specified below.
+;
+;                        43______GRP0______50    54____GRP0______61
+;           __         __/        __        \__/        __        \__
+;          |1 |       |2 |       |3 |       |4 |       |5 |       |6 |
+;          |__|       |__|       |__|       |__|       |__|       |__|
+;              \________________/    \________________/
+;             38      GRP1     45    48     GRP1      56
+;
+;          34-38      40-43      45-48      50-54      56-59      61-64
+;         104-112    120-128    136-144    152-160    168-176    184-192
+; 0         __         __         __         __         __         __        76
+; |--------|__|-------|__|-------|__|-------|__|-------|__|-------|__|--------|
+; 0   ^           ^          ^          ^          ^                        228
+;     |           |          |          |          |
+;  (1,2,3)       (4)        (5)        (6)        (7)
+; GRP 0,1,0      GRP1       GRP0       GRP1       GRP0
+;
+; GRP writes must occur between these cycle intervals:
+;   GRP 0,1,0 (writes 1,2,3)    between  0 - 34 cpu (  0 - 104 tia)
+;   GRP1 (write 4)              between 38 - 45 cpu (112 - 136 tia)
+;   GRP0 (write 5)              between 43 - 50 cpu (128 - 152 tia)
+;   GRP1 (write 6)              between 48 - 56 cpu (144 - 168 tia)
+;   GRP0 (write 7)              between 54 - 61 cpu (160 - 184 tia)
+; -----------------------------------------------------------------------------
+Bank3_RenderCardSprites SUBROUTINE
+    IF RENDER_DEBUG == 1
+    lda #$80
+    sta COLUBK      ; blue
+    ENDIF
+
+    ; adjust the stack to begin on the start of the sprite pointers
+    tsx                     ; 2 (2)     (6)
+    txa                     ; 2 (4)     (12)
+    sec                     ; 2 (6)     (18)
+    sbc #6                  ; 2 (8)     (24)
+    tax                     ; 2 (10)    (30)
+    txs                     ; 2 (12)    (36)
+
+    ; pre-cache some gap graphics
+    ldx GapIdx              ; 3 (15)    (45)
+    ldy Bank3_GapAnim,x     ; 4 (19)    (57)
+    lda Bank3_GapGfx,y      ; 4 (23)    (69)
+    sta GapLastElem         ; 3 (26)    (78)    last element
+    ldy Bank3_GapAnim+5,x   ; 4 (30)    (90)
+    ldx Bank3_GapGfx,y      ; 4 (34)    (102)   first element
+
+#if PIP_COLORS
+    ; color test
+    lda #2
+    sta ENABL
+    lda #%00110000
+    sta CTRLPF
+    lda #%01100000
+    sta PF0
+    lda #BG_COLOR           ; 2 (2)
+    sta COLUPF              ; 3 (5)
+#endif
+
+    ; draw top half of the card (rank)
+    ldy #RANK_HEIGHT-1      ; 2 (36)    (108)
+.Rank
+    ;                         Explicit write ^      Implicit write >        Display !
+    ;
+    ;                         CPU       TIA     GRP0 -> GRP0A   GRP1 -> GRP1A
+    ; -------------------------------------------------------------------------------
+    lda (SpritePtrs),y      ; 5 (67)    (201)
+    sta WSYNC               ; 3 (70)    (210)   
+    ; -----------
+    sta GRP0                ; 3 (3)     (9)     ^D1      *       *       *
+    lda (SpritePtrs+2),y    ; 5 (8)     (24)
+    sta GRP1                ; 3 (11)    (33)     D1     >D1     ^D2      *
+    lda (SpritePtrs+4),y    ; 5 (16)    (48)
+    sta GRP0                ; 3 (19)    (57)    ^D3      D1      D2     >D2
+
+#if PIP_COLORS
+    lda #$42                ; 2 (21)    (63)
+    sta COLUPF              ; 3 (24)    (72)
+    nop                     ; 2 (26)    (78)
+    nop                     ; 2 (28)    (84)
+    nop                     ; 2 (30)    (90)
+#else
+    bit $0                  ; 3 (22)    (66)
+    nop                     ; 2 (24)    (72)
+    nop                     ; 2 (26)    (78)
+    nop                     ; 2 (28)    (84)
+    nop                     ; 2 (30)    (90)
+#endif
+
+    lda (SpritePtrs+6),y    ; 5 (35)    (105)             !
+    sta GRP1                ; 3 (38)    (114)    D3     >D3     ^D4      D2
+    lda (SpritePtrs+8),y    ; 5 (43)    (129)                             !
+    sta GRP0                ; 3 (46)    (138)   ^D5      D3!     D4     >D4
+    lda (SpritePtrs+10),y   ; 5 (51)    (153)                             !
+    sta GRP1                ; 3 (54)    (162)    D5     >D5!    ^D6      D4
+    sta GRP0                ; 3 (57)    (171)   ^D6      D5      D6     >D6!
+
+    dey                     ; 2 (59)    (177)
+    bpl .Rank               ; 3 (62)    (186)
+                            ; 2 (61)    (183)
+    IF RENDER_DEBUG == 1
+    lda #$40
+    sta COLUBK      ; red
+    ENDIF
+
+    ; Suit graphics pointers are popped off the stack into
+    ; SpritePtrs by interlacing the assignments with the
+    ; gap rendering.
+
+    ; updating the suit graphics
+    pla                     ; 4 (65)    (195)
+    sta SpritePtrs          ; 3 (68)    (204)
+
+    ; ---- line 1 ----
+    ; draw gap graphics
+    stx GRP0                ; 3 (71)    (213)     ^D1      *       *       *
+
+    ldx GapIdx              ; 3 (74)    (222)
+    ldy Bank3_GapAnim+4,x   ; 4 (2)     (6)
+    lda Bank3_GapGfx,y      ; 4 (6)     (18)
+    ldy Bank3_GapAnim+3,x   ; 4 (10)    (30)
+    sta GRP1                ; 3 (13)    (39)       D1     >D1     ^D2      *
+
+    lda Bank3_GapGfx,y      ; 4 (17)    (51)
+    ldy Bank3_GapAnim+2,x   ; 4 (21)    (63)
+    sta GRP0                ; 3 (24)    (72)      ^D3      D1      D2     >D2
+
+    bit $0                  ; 3 (27)    (81)
+
+    lda Bank3_GapGfx,y      ; 4 (31)    (93)
+    ldy Bank3_GapAnim+1,x   ; 4 (35)    (105)               !
+    sta GRP1                ; 3 (38)    (114)      D3     >D3     ^D4      D2
+
+    lda Bank3_GapGfx,y      ; 4 (42)    (126)                               !
+    sta GRP0                ; 3 (45)    (135)     ^D5      D3!     D4     >D4
+
+    lda GapLastElem         ; 3 (48)    (144)
+    sta GRP1                ; 3 (51)    (153)      D5     >D5     ^D6      D4!
+    sta GRP0                ; 3 (54)    (162)      D5     ^D7      D6     >D6
+
+    ; updating the suit graphics
+    pla                     ; 4 (58)    (174)               !
+    sta SpritePtrs+2        ; 3 (61)    (183)                                !
+    pla                     ; 4 (65)    (195)
+    sta SpritePtrs+4        ; 3 (68)    (204)
+
+    ; ---- line 2 ----
+    ; prepare gap graphics
+    ldy Bank3_GapAnim+5,x   ; 4 (72)    (216)
+    lda Bank3_GapGfx,y      ; 4 (0)     (0)
+    ; -----------
+    sta GRP0                ; 3 (3)     (9)
+    ldy Bank3_GapAnim+4,x   ; 4 (7)     (21)
+    lda Bank3_GapGfx,y      ; 4 (11)    (33)
+    sta GRP1                ; 3 (14)    (42)       D1     >D1     ^D2      *
+    ldy Bank3_GapAnim+3,x   ; 4 (18)    (54)
+    lda Bank3_GapGfx,y      ; 4 (22)    (66)
+    sta GRP0                ; 3 (25)    (75)      ^D3      D1      D2     >D2
+
+    ldy Bank3_GapAnim+2,x   ; 4 (29)    (87)
+    lda Bank3_GapGfx,y      ; 4 (33)    (99)                !
+    ldy Bank3_GapAnim+1,x   ; 4 (37)    (111)
+    sta GRP1                ; 3 (40)    (120)      D3     >D3     ^D4      D2!
+
+    lda Bank3_GapGfx,y      ; 4 (44)    (132)
+    sta GRP0                ; 3 (47)    (141)     ^D5      D3!     D4     >D4
+
+    lda GapLastElem         ; 3 (50)    (150)                               !
+    sta GRP1                ; 3 (53)    (159)      D5     >D5     ^D6      D4
+    sta GRP0                ; 3 (56)    (168)      D5     ^D7!     D6     >D6
+
+    pla                     ; 4 (60)    (180)
+    sta SpritePtrs+6        ; 3 (63)    (189)                               !
+    pla                     ; 4 (67)    (201)
+    sta SpritePtrs+8        ; 3 (70)    (210)
+    pla                     ; 4 (74)    (222)
+    sta SpritePtrs+10       ; 3 (1)     (3)
+
+    IF RENDER_DEBUG == 1
+    lda #$80
+    sta COLUBK      ; blue
+    ENDIF
+
+    ; draw bottom half of the card (suit)
+    ldy #SUIT_HEIGHT-1      ; 2 (3)     (9)
+    bit $0                  ; 3 (6)     (18)    align cycles for 1st iteration
+.Suit
+    ;                         CPU       TIA     GRP0 -> GRP0A   GRP1 -> GRP1A
+    ; -------------------------------------------------------------------------------
+    lda (SpritePtrs),y      ; 5 (12)    (36)
+    sta GRP0                ; 3 (15)    (45)    ^D1      *       *       *
+    lda (SpritePtrs+2),y    ; 5 (20)    (60)
+    sta GRP1                ; 3 (23)    (69)     D1     >D1     ^D2      *
+    lda (SpritePtrs+4),y    ; 5 (28)    (84)
+    sta GRP0                ; 3 (31)    (93)    ^D3      D1      D2     >D2
+
+    lda (SpritePtrs+6),y    ; 5 (36)    (108)             !
+    sta GRP1                ; 3 (39)    (117)    D3     >D3     ^D4      D2!
+    lda (SpritePtrs+8),y    ; 5 (44)    (132)
+    sta GRP0                ; 3 (47)    (141)   ^D5      D3!     D4     >D4
+    lda (SpritePtrs+10),y   ; 5 (52)    (156)                             !
+    sta GRP1                ; 3 (55)    (165)    D5     >D5     ^D6      D4
+    sta GRP0                ; 3 (58)    (174)   ^D6      D5!     D6     >D6
+    sta WSYNC               ; 3 (61)    (183)                             !
+    ; -----------
+    nop                     ; 2 (2)     (6)     align cycles
+    dey                     ; 2 (4)     (12)
+    bpl .Suit               ; 3 (7)     (21)
+
+    IF RENDER_DEBUG == 1
+    lda #BG_COLOR
+    sta COLUBK      ; dark green
+    ENDIF
+
+    lda #0                  ; 2 (2)
+    sta GRP0                ; 3 (5)
+    sta GRP1                ; 3 (8)
+
+#if PIP_COLORS
+    ; color test
+    sta ENABL               ; 3 (3)
+    sta PF0                 ; 3 (3)
+    lda #BG_COLOR           ; 2 (2)
+    sta COLUPF              ; 3 (5)
+#endif
+
+    rts                     ; 6 (14)        884 cpu cycles (11.6 lines)
+
+    PAGE_BOUNDARY_CHECK "Bank3_RenderCardSprites crossed a page boundary"
+
+; -----------------------------------------------------------------------------
+; Desc:     Compute the Log2 of A. (Returns highest bit set.)
+; Inputs:   A register (value)
+; Ouputs:   X register (result)
+;           1-8 when A>0, 0 otherwise.
+; Notes:
+;   Max cycles: 67 = 7 + (7 x 7 loops) - 1 + 12 (jsr & rts)
+; -----------------------------------------------------------------------------
+Bank3_Log2 SUBROUTINE   ; 6 (6)
+    ldx #0              ; 3 (9)
+    tay                 ; 2 (11)
+    cmp #0              ; 2 (13)
+    beq .Return         ; 2 (15)
+.Loop
+    inx                 ; 2 (2)
+    lsr                 ; 2 (4)
+    bne .Loop           ; 3 (7)
+    tya                 ; 2 (2)
+.Return
+    rts                 ; 6 (6)
+
+; -----------------------------------------------------------------------------
+    ORG BANK3_ORG + $a00, FILLER_CHAR
+    RORG BANK3_RORG + $a00
+
+    PAGE_BOUNDARY_SET
+    include "bank3/gfx/options.asm"
+    include "bank3/gfx/play.asm"
+    PAGE_BOUNDARY_CHECK "Bank3 sprites crossed a page boundary"
+
+    INCLUDE_SPRITE_OPTIONS 3
+    INCLUDE_SPRITE_COLORS 3
+
+; -----------------------------------------------------------------------------
+    ORG BANK3_ORG + $b00, FILLER_CHAR
+    RORG BANK3_RORG + $b00
+
+    PAGE_BOUNDARY_SET
+    include "bank3/gfx/cards.asm"
+    PAGE_BOUNDARY_CHECK "Bank3 cards.asm page boundary crossed"
+
+; -----------------------------------------------------------------------------
+    ORG BANK3_ORG + $c00, FILLER_CHAR
+    RORG BANK3_RORG + $c00
+
+    PAGE_BOUNDARY_SET
+    include "bank3/gfx/betting.asm"    ; must reside within a single page
+    PAGE_BOUNDARY_CHECK "Bank3 betting.asm page boundary crossed"
 
 ; indexed by PlayerFlags
 Bank3_ResultMessagesLSB
@@ -2102,7 +2178,7 @@ Bank3_PromptMessagesLSB
     dc.b <Bank3_SplitStr0, <Bank3_SplitStr1, <Bank3_SplitStr2, <Bank3_SplitStr3     ; 6
     dc.b <Bank3_InsuranceStr0, <Bank3_InsuranceStr1, <Bank3_InsuranceStr2, <Bank3_InsuranceStr3             ; 7
 
-    INCLUDE_POSITIONING_SUBS Bank3_
+    INCLUDE_POSITIONING_SUBS 3
 
 ; ----------------------------------------------------------------------------
     ORG BANK3_ORG + $d00
@@ -2110,38 +2186,51 @@ Bank3_PromptMessagesLSB
 
     include "bank3/gen/prompts-48.sp"  ; must not cross a page boundary
 
-Bank3_LeftArrow
-    dc.b %00001100
-    dc.b %00111100
-    dc.b %11111100
-    dc.b %00111100
-    dc.b %00001100
-    dc.b %00000000
-    dc.b %00000000
+; Map rank to a card graphic
+Bank3_CardRankGfx
+    dc.b <BlankCard
+    dc.b <AceSprite,    <Bank3_Rank2, <Bank3_Rank3
+    dc.b <Bank3_Rank4,  <Bank3_Rank5, <Bank3_Rank6
+    dc.b <Bank3_Rank7,  <Bank3_Rank8, <Bank3_Rank9
+    dc.b <Bank3_Rank10, <JackSprite,  <QueenSprite
+    dc.b <KingSprite,   <BlankCard,   <BlankCard
 
-Bank3_RightArrow
-    dc.b %00110000
-    dc.b %00111100
-    dc.b %00111111
-    dc.b %00111100
-    dc.b %00110000
-    dc.b %00000000
-    dc.b %00000000
+; Map suit to a card graphic
+Bank3_CardSuitGfx
+    dc.b <DiamondSprite, <ClubSprite, <HeartSprite, <SpadeSprite
 
-; Current Player
-;  P1    P2   Dlr   Unused   ; Currently rendering hand
-; 0000, 0001, 0010, 0011     ; P1
-; 0100, 0101, 0110, 0111     ; P2
-; 1000, 1001, 1010, 1011     ; Dealer
-;
-; Bits: 0-1 current player hand
-;       2-3 currently rendering player hand
-Bank3_ColorMatrix
-    dc.b CARD_COLOR,          CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR
-    dc.b CARD_INACTIVE_COLOR, CARD_COLOR,          CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR
-    dc.b CARD_COLOR,          CARD_COLOR,          CARD_COLOR, CARD_INACTIVE_COLOR
+; Animation data:
+;   Sequence record:
+;      Position    1 byte
+;          Bits 3-7:    row
+;          Bits 0-2:    column
+;      State:     1 byte
+;          Bits 5-7:    number of loops
+;          Bits 0-4:    number of frames (disables the animation)
+;   Sequences array[]:
+;      Pointer -> Sequence
+;      Pointer -> Sequence
+;      Pointer -> Sequence
+;      ...
+Bank3_FlipRankSeq
+    dc.b [0 << 3] | 2   ; row, column
+    dc.b [1 << 5] | 4   ; loops, frames
+Bank3_FlipRankGfxLo
+    dc.b 0, <Bank3_FlipRank3, <Bank3_FlipRank2, <Bank3_FlipRank1, <Bank3_FlipRank0
+Bank3_FlipRankGfxHi
+    dc.b 0, >Bank3_FlipRank3, >Bank3_FlipRank2, >Bank3_FlipRank1, >Bank3_FlipRank0
 
-    dc.b %00000000
+;Bank3_Bank3_FlipSuitSeq
+;    dc.b [0 << 3] | 2
+;    dc.b [1 << 5] | 4
+Bank3_Bank3_FlipSuitGfxLo
+    dc.b 0, <Bank3_FlipSuit3, <Bank3_FlipSuit2, <Bank3_FlipSuit1, <Bank3_FlipSuit0
+
+ANIM_ID_NONE                = 0
+ANIM_ID_FLIP_CARD           = 1
+Bank3_Sequences
+    dc.b 0                  ; ANIM_ID_NONE
+    dc.b <Bank3_FlipRankSeq ; ANIM_ID_FLIP_CARD
 
 ; ----------------------------------------------------------------------------
     ORG BANK3_ORG + $e00
@@ -2216,28 +2305,107 @@ Bank3_CardToSpriteOffset            ; maps card position to sprite position
     dc.b 0, 2, 4, 6, 8, 10
     dc.b 0, 2, 4, 6, 8, 10
 
-    SPRITE_OPTIONS 3
-    SPRITE_COLORS 3
+; indexed by player id (0-2) or player id + 1 (1-3)
+Bank3_HandOffset
+    dc.b NUM_VISIBLE_CARDS*0, NUM_VISIBLE_CARDS*1
+    dc.b NUM_VISIBLE_CARDS*2, NUM_VISIBLE_CARDS*3
 
-    MULTIPLY_TABLE Bank3_, 2, 16
-    MULTIPLY_TABLE Bank3_, 4, 8
-    MULTIPLY_TABLE Bank3_, 6, 10
-    MULTIPLY_TABLE Bank3_, 11, 5
+; When there is no active card flip animation, the static table is
+; used, otherwise the animation table is used.
+; Factors in deciding animation state:
+;   animating vs static
+;   number of cards
+;   card slot empty vs occuped
+;   animation row, animation column
+;   rendering row, rendering column
+;   current animation frame progress
+; Slots are read from right to left
+Bank3_GapAnim
+    ; animating cards
+    dc.b 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0    ; frame 1
+    dc.b 5, 5, 5, 5, 5, 2, 0, 0, 0, 0, 0    ; frame 2
+    dc.b 5, 5, 5, 5, 5, 3, 0, 0, 0, 0, 0    ; frame 3
+    dc.b 5, 5, 5, 5, 5, 4, 0, 0, 0, 0, 0    ; frame 4
+    ; static cards
+Bank3_GapStatic
+    dc.b 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0 ; blank/solid
+
+; Gap graphics data: indexed by Bank3_GapAnim
+Bank3_GapGfx
+    dc.b %11111111  ; 0
+    dc.b %00111110  ; 1
+    dc.b %00010000  ; 2
+    dc.b %01111100  ; 3
+    dc.b %11111111  ; 4
+    dc.b %00000000  ; 5
+
+; Map hole card to a flipped card graphic using a decision table.
+; Three conditions must be true before using the flipped card graphic.
+;   PlayerIdx = dealer, num cards >= 2, hole flag = 1
+;
+; Format of the index:
+;   Bit 0-1:  player index [0-2]
+;   Bit 2:    num cards >= 2 flag
+;   Bit 3:    hole flag bit (from CurrState)
+;
+;     P0    P1    DLR    Player 3 is unused
+;           +----------------------- hole card shown
+;           |
+;   0000, [0001], 0010,  0011
+;   0100,  0101,  0110,  0111
+;   1000,  1001,  1010,  1011
+;   1100,  1101, (1110), 1111
+;                  |
+;                  +---------------- hole card shown
+;
+; The rank table is reversed and overlapping the suit table (eor $0f)
+; to save space
+RULE_PLAYER_MASK        = %00000011
+RULE_NUMCARDS_MASK      = %00000100
+RULE_HOLE_MASK          = %00001000
+Bank3_RankRuleTable
+    dc.b 0, <RankBack, 0, 0
+Bank3_SuitRuleTable
+    ds.b 14, 0
+    dc.b <SuitBack
+    ; dc.b 0 implied 
+
+Bank3_NumCardsFlag      ; indexed by number of cards
+    dc.b 0, 0
+    ds.b 5, RULE_NUMCARDS_MASK
+
+    INCLUDE_MULTIPLY_TABLE 3, 2, 16
+    INCLUDE_MULTIPLY_TABLE 3, 4, 8
+    INCLUDE_MULTIPLY_TABLE 3, 6, 10
+    INCLUDE_MULTIPLY_TABLE 3, 11, 5
 
 ; ----------------------------------------------------------------------------
-    ORG BANK3_ORG + $f00
+    ORG BANK3_ORG + $f00, FILLER_CHAR
     RORG BANK3_RORG + $f00
 
     include "bank3/gen/messages-48.sp" ; must not cross a page bondary
 
+; Current Player
+;  P1    P2   Dlr   Unused   ; Currently rendering hand
+; 0000, 0001, 0010, 0011     ; P1
+; 0100, 0101, 0110, 0111     ; P2
+; 1000, 1001, 1010, 1011     ; Dealer
+;
+; Bits: 0-1 current player hand
+;       2-3 currently rendering player hand
+Bank3_ColorMatrix
+    dc.b CARD_COLOR,          CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR
+    dc.b CARD_INACTIVE_COLOR, CARD_COLOR,          CARD_INACTIVE_COLOR, CARD_INACTIVE_COLOR
+    dc.b CARD_COLOR,          CARD_COLOR,          CARD_COLOR, CARD_INACTIVE_COLOR
+    dc.b 0
+
 ; -----------------------------------------------------------------------------
 ; Shared procedures
 ; -----------------------------------------------------------------------------
-PROC_BANK2_OVERSCAN3        = 0
+PROC_BANK3_OVERSCAN    		= 0
 
 Bank3_ProcTableLo
     dc.b <Bank2_Overscan
-
 Bank3_ProcTableHi
     dc.b >Bank2_Overscan
 

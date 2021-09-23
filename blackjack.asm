@@ -34,7 +34,7 @@
 ; Landing & take off screen sections:
 ;   --------------------------------------
 ;   | Atmsophere                         |
-;   | Background Hills                          |
+;   | Background Hills                   |
 ;   |                                    |
 ;   |                                    |
 ;   --------------------------------------
@@ -58,6 +58,7 @@ VIDEO_MODE                  = VIDEO_NTSC
 NO_ILLEGAL_OPCODES          = 1
 POSITION_OBJECT_VERS        = 1
 BANKSWITCH_VERS             = 1
+;HORIZ_POSITION_EXTRAS       = 0
 
     include "sys/video.h"
     include "atarilib.h"
@@ -97,7 +98,7 @@ TEST_TIME_ON                = 0
 TEST_TIMING_ON              = 0
 TEST_STACK_DEBUG            = 0
 
-FILLER_CHAR                 = $4f ; $ea
+FILLER_CHAR                 = $4f; $00
 
 ; offscreen timings
 TIME_VBLANK                 = 37*76/64  ; TIM64T (43.9375)
@@ -154,6 +155,7 @@ COLOR_CARDS_IDX             = 3
 COLOR_CHIPS_IDX             = 4
 OPT_BAR_IDX                 = 5
 
+; Sprite indexes: Playfield and sprite options
 ; SpriteSize, SpriteDelay, SpritePositions*, SpriteAdjust*
 SPRITE_GRAPHICS_IDX         = 0
 SPRITE_CARDS_IDX            = 1
@@ -210,7 +212,6 @@ DEALER_CARDS_OFFSET         = NUM_VISIBLE_CARDS * DEALER_IDX
 
 ; Variables global to the all banks
 GlobalVars
-
       
 ; Game state selects which handler is executed on the current frame.
 GS_TITLE_SCREEN             = 0
@@ -239,11 +240,11 @@ GS_PLAYER_BLACKJACK         = 22
 GS_PLAYER_WIN               = 23
 GS_PLAYER_PUSH              = 24
 GS_PLAYER_HAND_OVER         = 25
-GS_DEALER_TURN              = 26    ; ----
-GS_DEALER_PRE_HIT           = 27    ; Dealer game states must be ordered
-GS_DEALER_HIT               = 28    ; after player game states.
+GS_DEALER_TURN              = 26    ;-----
+GS_DEALER_PRE_HIT           = 27    ; Dealer game states must be sorted and
+GS_DEALER_HIT               = 28    ; positioned after player game states.
 GS_DEALER_POST_HIT          = 29    ;
-GS_DEALER_HAND_OVER         = 30    ; ----
+GS_DEALER_HAND_OVER         = 30    ;-----
 GS_GAME_OVER                = 31
 GS_INTERMISSION             = 32
 GS_BROKE_BANK1              = 33
@@ -287,7 +288,6 @@ JoyINPT4                    ds.b 1
 
 JOY_FIRE_BIT                = %00000100
 
-
 ; Sound effect ID for the sound effect queue
 SOUND_ID_NONE               = 0
 SOUND_ID_ERROR              = 1
@@ -322,7 +322,7 @@ SOUND_LOOPS_MASK            = %00001111
 SoundCtrl                   ds.b SOUND_QUEUE_LEN
 
 ;
-; Variables global to 1+ banks
+; Variables shared between multiple banks
 ; -----------------------------------------------------------------------------
 BankVars
 
@@ -345,7 +345,7 @@ TaskArg                     ds.b 2
 ARG_POPUP_OPEN              = POPUP_HEIGHT
 
 ; Current bet amount: BCD (big endian): [MSB, LSB]
-CurrBet                    ds.b 3
+CurrBet                     ds.b 3
 ; Currently selected player
 CurrPlayer                  ds.b 1
 
@@ -461,17 +461,15 @@ PlayerPileScore             ds.b NUM_HANDS      ; score of off screen cards
 ; Rendering variables
 SpritePtrs                  ds.w NUM_VISIBLE_CARDS
 TempPtr                     ds.w 1
-TempPtr2
-Arg1                        ds.b 1
-Arg2                        ds.b 1
+TempPtr2                    ds.w 1
+Arg1                        = TempPtr2
+Arg2                        = TempPtr2+1
 
-; Variables temporary to subroutines
+; Variables local to a subroutine
 ; -----------------------------------------------------------------------------
 TempVars
-    ECHO "TempVars =", TempVars
-
 MemBlockEnd
-    ECHO "MemBlockEnd =", MemBlockEnd
+BankVarsEnd
 
     RAM_BYTES_USAGE
 

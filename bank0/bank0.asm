@@ -1,5 +1,5 @@
 ; -----------------------------------------------------------------------------
-    SEG bank0
+    SEG Bank0
 
     ORG BANK0_ORG, FILLER_CHAR
     RORG BANK0_RORG
@@ -10,12 +10,13 @@
 ; Kernel
 PalIdx1     SET LocalVars
 PalIdx2     SET LocalVars+1
+IntPtr		SET LocalVars+2
 
 ; -----------------------------------------------------------------------------
 ; Subroutines
 ; -----------------------------------------------------------------------------
 Bank0_Reset
-    nop     ; 3 bytes for bit instruction
+    nop     ; 3 byte alignment for bankswitching
     nop
     nop
     CLEAN_START
@@ -28,22 +29,17 @@ Bank0_Init
     CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
     CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
 
-Bank0_FrameStart SUBROUTINE
-    ; -------------------------------------------------------------------------
-    ; vertical sync
-    ; -------------------------------------------------------------------------
-Bank0_VerticalSync
+Bank0_TitleLoop SUBROUTINE
     VERTICAL_SYNC
 
-    ; -------------------------------------------------------------------------
-    ; vertical blank
-    ; -------------------------------------------------------------------------
-Bank0_VerticalBlank
+    ; --------------
+    ; Vertical blank
+    ; --------------
     lda #TIME_VBLANK_TITLE
     sta TIM64T
 
     lda #0
-    sta VBLANK
+    sta WSYNC
     sta COLUBK
     sta PF0
     sta PF1
@@ -60,14 +56,15 @@ Bank0_VerticalBlank
     jsr Bank0_InitSpriteSpacing
 
     jsr Bank0_UpdateHighlights
-
     TIMER_WAIT
-    sta WSYNC
 
-    ; -------------------------------------------------------------------------
+    lda #0
+    sta WSYNC
+    sta VBLANK
+
+    ; --------------
     ; Title kernel
-    ; -------------------------------------------------------------------------
-Bank0_TitleKernel
+    ; --------------
     SLEEP_LINES 26
 
     ; cycle the logo color
@@ -80,7 +77,7 @@ Bank0_TitleKernel
     sta TIM64T
     jsr Bank0_DrawTitleGraphic
 
-    lda #COLOR_BLACK
+    lda #0
     sta WSYNC
     sta PF0
     sta PF1
@@ -107,7 +104,7 @@ Bank0_TitleKernel
     ldy #TITLE_CARDS_HEIGHT-1
     jsr DrawColor6Sprite56
 
-    lda #COLOR_BLACK
+    lda #0
     sta WSYNC
     sta PF0
     sta PF1
@@ -189,7 +186,7 @@ Bank0_TitleKernel
     ldy #TITLE_COPY_HEIGHT-1    ; 2 (2)
     jsr DrawColor6Sprite56
 
-    ; A register will be 0
+    ; register A is 0 here
     sta COLUBK                  ; 3 (3)
     sta WSYNC
     sta GRP0                    ; 3 (3)
@@ -200,12 +197,11 @@ Bank0_TitleKernel
     sta VDELP0                  ; 3 (18)
     sta VDELP1                  ; 3 (21)
 
-    SLEEP_LINES 8
+    SLEEP_LINES 9
 
-    ; -------------------------------------------------------------------------
-    ; overscan
-    ; -------------------------------------------------------------------------
-Bank0_Overscan
+    ; ------------
+    ; Overscan
+    ; ------------
     lda #TIME_OVERSCAN
     sta TIM64T
 
@@ -214,23 +210,19 @@ Bank0_Overscan
     sta WSYNC
     inc FrameCtr
 
-    ; read input
-    jsr Bank0_ReadJoystick
-
     ; check for button press
-    lda #JOY_FIRE_PACKED_MASK
+	jsr Bank0_ReadJoystick
+    lda #JOY_REL_FIRE
     bit JoyRelease
-    beq .Continue
-
-    JUMP_BANK PROC_BANK1_INIT, 1
-
-.Continue
+    bne .JumpToBank
     jsr Bank0_ReadSwitches
 
-    TIMER_WAIT
     sta WSYNC
+    TIMER_WAIT
+    jmp Bank0_TitleLoop
 
-    jmp Bank0_FrameStart
+.JumpToBank
+    JUMP_BANK PROC_BANK0_LANDINGINIT, 1, 0
 
 ; -----------------------------------------------------------------------------
 ; SUBROUTINES
@@ -254,13 +246,18 @@ Bank0_InitGlobals SUBROUTINE
     sta JoyINPT4
     ldx #1
     stx RandNum
+
     IF TEST_RAND_ON == 2
     ldx #0
-    ENDIF
     stx RandAlt
+    ELSE
+    stx RandAlt
+    ENDIF
+
     lda #NUM_DECKS-1 & FLAGS_LATE_SURRENDER & FLAGS_HIT_SOFT17
     sta GameOpts
-    ; begin counter after 2nd highlight, because it partially flashes on loading
+
+    ; begin counter after 2nd highlight, because it flashes on loading
     ldx #TITLE_COPY_HEIGHT
     stx FrameCtr
     rts
@@ -324,11 +321,13 @@ Bank0_UpdateHighlights SUBROUTINE   ; 6 (6)
     stx PalIdx2                     ; 3 (52)
     rts                             ; 6 (58)
 
+    INCLUDE_POSITIONING_SUBS 0
+
     ALIGN 256, FILLER_CHAR
     PAGE_BOUNDARY_SET
 
     ; Bank tailored subroutines from include/screen.h
-    SPRITE_POSITIONING 0
+    INCLUDE_SPRITE_POSITIONING 0
     PAGE_BOUNDARY_CHECK "Bank0 position"
 
     ; Bank tailored subroutines from include/menu.h
@@ -397,14 +396,14 @@ Bank0_ReadJoystick SUBROUTINE
     beq .CheckFire                  ; branch if no change
 .CheckRight
     bpl .CheckLeft                  ; 0 = no change, 1 = changed
-    lda #JOY0_RIGHT_MASK
+    lda #JOY0_RIGHT
     bit JoySWCHA                    ; 1 = released, 0 = pressed
     bne .CheckLeft                  ; branch if this is a press event
     ora JoyRelease                  ; turn the bit on
     sta JoyRelease
 .CheckLeft
     tya                             ; A = changed bits
-    and #JOY0_LEFT_MASK             ; 0 = no change, 1 = changed
+    and #JOY0_LEFT                  ; 0 = no change, 1 = changed
     beq .CheckDown                  ; branch if no change
     bit JoySWCHA                    ; 1 = released, 0 = pressed
     bne .CheckDown                  ; branch if this is a press event
@@ -412,7 +411,7 @@ Bank0_ReadJoystick SUBROUTINE
     sta JoyRelease
 .CheckDown
     tya                             ; A = changed bits
-    and #JOY0_DOWN_MASK             ; 0 = no change, 1 = changed
+    and #JOY0_DOWN                  ; 0 = no change, 1 = changed
     beq .CheckUp                    ; branch if no change
     bit JoySWCHA                    ; 1 = released, 0 = pressed
     bne .CheckUp                    ; branch if this is a press event
@@ -420,7 +419,7 @@ Bank0_ReadJoystick SUBROUTINE
     sta JoyRelease
 .CheckUp
     tya                             ; A = changed bits
-    and #JOY0_UP_MASK               ; 0 = no change, 1 = changed
+    and #JOY0_UP                    ; 0 = no change, 1 = changed
     beq .CheckFire                  ; branch if no change
     bit JoySWCHA                    ; 1 = released, 0 = pressed
     bne .CheckFire                  ; branch if this is a press event
@@ -430,11 +429,11 @@ Bank0_ReadJoystick SUBROUTINE
     lda INPT4
     tay                             ; save a copy
     eor JoyINPT4                    ; A = changed bits
-    and #JOY_FIRE_MASK              ; 0 = no change, 1 = changed
+    and #JOY_FIRE                   ; 0 = no change, 1 = changed
     bpl .Return                     ; branch if no change
     bit JoyINPT4                    ; 1 = released, 0 = pressed
     bne .Return                     ; branch if this is a press event
-    lda #JOY_FIRE_PACKED_MASK
+    lda #JOY_REL_FIRE
     ora JoyRelease                  ; turn the bit on
     sta JoyRelease
 .Return
@@ -607,18 +606,27 @@ Bank0_KeyCode
 ; Ouputs:
 ; -----------------------------------------------------------------------------
 Bank0_BettingKernel SUBROUTINE
+	; 7 lines of vertical blank are reserved for additional setup
     lda #7*76/64
     sta TIM64T
+
+    ldy #MSG_BAR_IDX
+    jsr Bank0_SetColors2
+    jsr Bank0_SetupOptionsPrompt           ; "Options"
+
+    SET_POINTER IntPtr, CurrBet
+
+	; 8 lines of vertical blank are reserved for additional setup
     TIMER_WAIT
 
-    ; message prompt section --------------------------------------------------
-    ldy #MSG_BAR_IDX
-    jsr Bank0_SetColors
+    lda #0
+	sta WSYNC
+    sta VBLANK
     
     lda #MSG_ROW_HEIGHT*76/64
     sta TIM64T
 
-    jsr Bank0_SetupOptionsPrompt           ; "Options"
+    ; message prompt section --------------------------------------------------
     ldy #MESSAGE_TEXT_HEIGHT-1
     jsr Bank0_DrawMessageBar
 
@@ -633,22 +641,22 @@ Bank0_BettingKernel SUBROUTINE
     jsr Bank0_PositionSprites
 
     ; hide MOVE line
-    lda #$0
-    sta COLUBK
-    sta PF0
-    sta PF1
-    sta PF2
+    lda #0
+	sta COLUPF
+	sta COLUBK
+	sta CTRLPF
 
     ldy #COLOR_CHIPS_IDX
-    jsr Bank0_SetColors
     sta WSYNC
-    jsr Bank0_SetPlayfield
+    jsr Bank0_SetColors2
+	sta WSYNC
+    jsr Bank0_SetTableau
 
     ldy #SPRITE_CARDS_IDX
     jsr Bank0_SetSpriteOptions
     jsr Bank0_ClearSprites
 
-    SLEEP_LINES 31
+    SLEEP_LINES 28
 
     ; casino chips section ----------------------------------------------------
     TIMED_JSR Bank0_SetupChipsPot, TIME_CHIPS_POT, TIM8T
@@ -657,27 +665,26 @@ Bank0_BettingKernel SUBROUTINE
 
     SLEEP_LINES 8
 
-    ;------
+    ; bet selection section ---------------------------------------------------
+
+	; top half (red)
     ldy #SPRITE_GRAPHICS_IDX
     jsr Bank0_SetSpriteOptions
     jsr Bank0_PositionSprites
 
-    lda #$0                 ; 2 (2)
-    sta COLUBK              ; 3 (5)
-    sta PF0                 ; 3 (8)
-    sta PF1                 ; 3 (11)
-    sta PF2                 ; 3 (14)
+    lda #0                  ; 2 (11)
+    sta COLUBK              ; 3 (14)
+	sta COLUPF				; 3 (17)
 
     ldy #MSG_BAR_IDX
-    jsr Bank0_SetColors
+	sta WSYNC
+    jsr Bank0_SetColors2
 
     jsr Bank0_SetupBettingPrompt    ; prompt: "Place Your Bet"
     ldy #MESSAGE_TEXT_HEIGHT-1
     jsr Bank0_DrawMessageBar
-    ;------
 
-    ; current bet section -----------------------------------------------------
-    SET_POINTER TempPtr, CurrBet
+	; bottom half (grey)
     jsr Bank0_SetupInteger
 
     ldy #SPRITE_BET_IDX
@@ -687,6 +694,9 @@ Bank0_BettingKernel SUBROUTINE
     ; hide MOVE line
     lda #$0                 ; 2 (2)
     sta COLUBK              ; 3 (5)
+	sta PF0					; 3 (3)
+	sta PF1					; 3 (3)
+	sta PF2					; 3 (3)
 
     ldy #POPUP_BAR_IDX
     jsr Bank0_SetColors
@@ -704,24 +714,20 @@ Bank0_BettingKernel SUBROUTINE
 
     ; hide MOVE line
     lda #$0                 ; 2 (2)
-    sta PF0                 ; 3 (8)
-    sta PF1                 ; 3 (11)
-    sta PF2                 ; 3 (14)
     sta COLUBK              ; 3 (5)
+	sta COLUPF				; 3 (8)
 
     ; tableau section (lower) -------------------------------------------------
     ldy #COLOR_CHIPS_IDX
-    jsr Bank0_SetColors
     sta WSYNC
-    jsr Bank0_SetPlayfield
+    jsr Bank0_SetColors2
     sta WSYNC
-    sta WSYNC
-    sta WSYNC
+    jsr Bank0_SetTableau
 
     ldy #SPRITE_CARDS_IDX
     jsr Bank0_SetSpriteOptions
 
-    SLEEP_LINES 28
+    SLEEP_LINES 34
 
     ; player's chip section ---------------------------------------------------
     jsr Bank0_ClearGraphicsOpts
@@ -753,7 +759,7 @@ Bank0_BettingKernel SUBROUTINE
     sta GRP1
 
     ; status bar section -----------------------------------------------------
-    SET_POINTER TempPtr, PlayerChips
+    SET_POINTER IntPtr, PlayerChips
     TIMED_JSR Bank0_SetupInteger, TIME_STATUS_BAR, TIM8T
 
     ldy #SPRITE_STATUS_IDX
@@ -781,7 +787,7 @@ Bank0_BettingKernel SUBROUTINE
     jsr Bank0_ClearGraphicsOpts
 
     ; saving 2 bytes of stack by jumping
-    JUMP_BANK PROC_BANK2_OVERSCAN0, 2
+    JUMP_BANK PROC_BANK0_OVERSCAN, 2, 0
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draws a big sprite.
@@ -814,7 +820,6 @@ Bank0_BettingKernel SUBROUTINE
 ; GRP0:     0-14    0-12    1-13    1-13    0-12
 ;
 
-    ;ALIGN 256, FILLER_CHAR
     PAGE_BOUNDARY_SET
 
 ; -----------------------------------------------------------------------------
@@ -829,6 +834,11 @@ Bank0_DrawMessageBar SUBROUTINE
     sta GRP1
     sta GRP0
     rts
+
+    PAGE_BOUNDARY_CHECK "Bank0 kernels (1)"
+
+    ALIGN 256, FILLER_CHAR
+    PAGE_BOUNDARY_SET
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Draw a 48 pixel wide sprite.
@@ -854,7 +864,7 @@ Bank0_Draw6Sprites SUBROUTINE
     DRAW_6_SPRITES SpritePtrs
     rts
 
-    PAGE_BOUNDARY_CHECK "(3) Kernels"
+    PAGE_BOUNDARY_CHECK "Bank0 kernels (2)"
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Performs game IO during blank.
@@ -865,13 +875,20 @@ Bank0_GameIO SUBROUTINE
     jsr Bank0_ReadSwitches
 
     ldx InputTimer
-    bne .Timer
+    bne .DecTimer
     jsr Bank0_ReadJoystick
-    jsr Bank0_TestKeypad
+	;jsr Bank0_TestKeypad
     rts
-.Timer
+
+.DecTimer
+    ; only update 1 in 64 frame ticks
+    lda #%00100000
+    bit FrameCtr
+    bne .Return
     dex
     stx InputTimer
+
+.Return
     rts
 
 ; -----------------------------------------------------------------------------
@@ -995,55 +1012,81 @@ Bank0_SetupBettingPrompt SUBROUTINE
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Assigns sprite pointers to display a 6 digit number.
-; Inputs:   SpritePtrs, TempPtr (pointer to 3 byte BCD integer)
+; Inputs:   SpritePtrs, IntPtr (pointer to 3 byte BCD integer)
 ; Outputs:
 ; -----------------------------------------------------------------------------
 Bank0_SetupInteger SUBROUTINE
-    ldy #2
-.Loop
     ; left digit
-    lda (TempPtr),y
+	ldy #0
+    lda (IntPtr),y
     lsr
     lsr
     lsr
     lsr
-    tax
-    clc
-    lda Bank0_Mult6,x       ; account for digit height
-    ldx Bank0_Mult4,y       ; X = 2 digits x 2 bytes
-    adc #<Bank0_Digit0
-    sta SpritePtrs,x
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+1,x
-
-    ; right digit
-    lda (TempPtr),y
-    and #$0f
-    tax
-    clc
-    lda Bank0_Mult6,x       ; account for digit height
-    ldx Bank0_Mult4,y       ; X = 2 digits x 2 bytes
-    adc #<Bank0_Digit0
-    sta SpritePtrs+2,x
-    lda #>Bank0_Digit0
-    adc #0
-    sta SpritePtrs+3,x
-
-    dey
-    bpl .Loop
-
+	bne .ShowNum
     ; show a dollar sign if left-most digit is 0
-    ldy #0
-    lda (TempPtr),y
-    and #$f0
-    bne .Return
     lda #<Bank0_Dollar
     sta SpritePtrs
     lda #>Bank0_Dollar
     sta SpritePtrs+1
+	jmp .NextDigit
+.ShowNum
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+1
+.NextDigit
+    ; right digit
+    lda (IntPtr),y
+    and #$0f
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs+2
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+3
 
-.Return
+    ; left digit
+	iny
+    lda (IntPtr),y
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs+4
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+5
+    ; right digit
+    lda (IntPtr),y
+    and #$0f
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs+6
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+7
+
+    ; left digit
+	iny
+    lda (IntPtr),y
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs+8
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+9
+    ; right digit
+    lda (IntPtr),y
+    and #$0f
+    tax
+	lda Bank0_IntGfxLo,x
+    sta SpritePtrs+10
+	lda Bank0_IntGfxHi,x
+    sta SpritePtrs+11
     rts
 
 ; -----------------------------------------------------------------------------
@@ -1412,22 +1455,22 @@ Bank0_CancelMenuSprite
 ; -----------------------------------------------------------------------------
 ; Shared procedures
 ; -----------------------------------------------------------------------------
-PROC_BANK1_INIT             = 0
-PROC_ANIMATIONCLEAR         = 1
-PROC_SOUNDQUEUECLEAR        = 2
-PROC_BANK2_OVERSCAN0        = 3
+PROC_BANK0_LANDINGINIT		= 0
+PROC_BANK0_OVERSCAN			= 1
+PROC_ANIMATIONCLEAR         = 2
+PROC_SOUNDQUEUECLEAR        = 3
 
 Bank0_ProcTableLo
-    dc.b <Bank1_Init
+    dc.b <Bank1_LandingInit
+    dc.b <Bank2_Overscan
     dc.b <AnimationClear
     dc.b <SoundClear
-    dc.b <Bank2_Overscan
 
 Bank0_ProcTableHi
-    dc.b >Bank1_Init
+    dc.b >Bank1_LandingInit
+    dc.b >Bank2_Overscan
     dc.b >AnimationClear
     dc.b >SoundClear
-    dc.b >Bank2_Overscan
 
     include "sys/bank0_palette.asm"
 
@@ -1439,7 +1482,7 @@ Bank0_ProcTableHi
 ; Ouputs:
 ; -----------------------------------------------------------------------------
     PAGE_BOUNDARY_SET
-    include "../shared/lib/draw.asm"
+    include "../atarilib/lib/draw.asm"
 
 Bank0_DrawTitleGraphic SUBROUTINE
     ldy #TITLE_LOGO_HEIGHT-1
@@ -1453,50 +1496,54 @@ Bank0_DrawTitleGraphic SUBROUTINE
     include "bank0/gen/title-gfx-48.sp"
     PAGE_BOUNDARY_CHECK "TItle gfx"
 
-    MULTIPLY_TABLE Bank0_, 4, 10
-    MULTIPLY_TABLE Bank0_, 5, 4
-    MULTIPLY_TABLE Bank0_, 6, 20
+    INCLUDE_MULTIPLY_TABLE 0, 4, 10
+    INCLUDE_MULTIPLY_TABLE 0, 5, 4
+    INCLUDE_MULTIPLY_TABLE 0, 6, 20
 
     ; Bank tailored data from lib\macros.asm
-    SPRITE_OPTIONS 0
-    SPRITE_COLORS 0
+    INCLUDE_SPRITE_OPTIONS 0
+    INCLUDE_SPRITE_COLORS 0
 
-; -----------------------------------------------------------------------------
-; Graphics
-; -----------------------------------------------------------------------------
-    ORG BANK0_ORG + $c00
+    ; -------------------------------------------------------------------------
+    ; Graphics
+    ; -------------------------------------------------------------------------
+    ORG BANK0_ORG + $c00, FILLER_CHAR
     RORG BANK0_RORG + $c00
 
-    PAGE_BOUNDARY_SET
 Bank0_BlankSprite
     ds.b 15, 0
     include "bank0/gfx/digits.asm"
     include "bank0/gfx/betting-menu.asm"
-    PAGE_BOUNDARY_CHECK "(2) Sprite data"
-    PAGE_BYTES_REMAINING
 
-; -----------------------------------------------------------------------------
-    ORG BANK0_ORG + $d00
+    ; ------------------------------------------------------------------------
+    ORG BANK0_ORG + $d00, FILLER_CHAR
     RORG BANK0_RORG + $d00
+
     include "bank0/gen/title-logo-48.sp"
-    PAGE_BYTES_REMAINING
 
-    ORG BANK0_ORG + $e00
+    ; ------------------------------------------------------------------------
+    ORG BANK0_ORG + $e00, FILLER_CHAR
     RORG BANK0_RORG + $e00
-    PAGE_BOUNDARY_SET
+
     include "bank0/gen/title-copy-48.sp"
-    PAGE_BOUNDARY_CHECK "Bank0 graphics"
-    PAGE_BYTES_REMAINING
 
-    ORG BANK0_ORG + $f08
-    RORG BANK0_RORG + $f08
+    ; ------------------------------------------------------------------------
+    ORG BANK0_ORG + $f00, FILLER_CHAR
+    RORG BANK0_RORG + $f00
 
-    PAGE_BOUNDARY_SET
     include "bank0/gen/bet-prompts-48.sp"
-    PAGE_BOUNDARY_CHECK "Bank0 prompts"
 
-    PAGE_BYTES_REMAINING_FROM $ff6-BS_SIZEOF
+Bank0_IntGfxLo
+	dc.b <Bank0_Digit0, <Bank0_Digit1, <Bank0_Digit2, <Bank0_Digit3
+	dc.b <Bank0_Digit4, <Bank0_Digit5, <Bank0_Digit6, <Bank0_Digit7
+	dc.b <Bank0_Digit8, <Bank0_Digit9
 
+Bank0_IntGfxHi
+	dc.b >Bank0_Digit0, >Bank0_Digit1, >Bank0_Digit2, >Bank0_Digit3
+	dc.b >Bank0_Digit4, >Bank0_Digit5, >Bank0_Digit6, >Bank0_Digit7
+	dc.b >Bank0_Digit8, >Bank0_Digit9
+
+    ; ------------------------------------------------------------------------
     ORG BANK0_ORG + $ff6-BS_SIZEOF
     RORG BANK0_RORG + $ff6-BS_SIZEOF
 

@@ -21,7 +21,7 @@ Bank3_ShoeTail100
     dc.b %11110100
     dc.b %11101000
     dc.b %11010000
-; 10% track
+; 50% track
 Bank3_ShoeHead50
     dc.b %00000000
     dc.b %11111111
@@ -86,3 +86,20 @@ DashboardInsurance
     dc.b %00110110
     dc.b %00100010
     dc.b %00111110
+
+Bank3_LeftArrow
+    dc.b %00001100
+    dc.b %00111100
+    dc.b %11111100
+    dc.b %00111100
+    dc.b %00001100
+    dc.b %00000000
+    dc.b %00000000
+Bank3_RightArrow
+    dc.b %00110000
+    dc.b %00111100
+    dc.b %00111111
+    dc.b %00111100
+    dc.b %00110000
+    dc.b %00000000
+    dc.b %00000000

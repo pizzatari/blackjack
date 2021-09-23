@@ -1,31 +1,10 @@
-; -----------------------------------------------------------------------------
+;+2 -----------------------------------------------------------------------------
 ; Start of bank 2
 ; -----------------------------------------------------------------------------
-    SEG bank2
+    SEG Bank2
 
     ORG BANK2_ORG, FILLER_CHAR
     RORG BANK2_RORG
-
-; -----------------------------------------------------------------------------
-; Local Macros
-; -----------------------------------------------------------------------------
-    ; -----------------------------------------------------------------------------
-    ; Desc:     Copies a 3-byte integer.
-    ; Param:    destination, source
-    ; Input:
-    ; Output:
-    ; -----------------------------------------------------------------------------
-    MAC COPY_INT3
-.Dst SET {1}
-.Src SET {2}
-
-    lda .Src
-    sta .Dst
-    lda .Src+1
-    sta .Dst+1
-    lda .Src+2
-    sta .Dst+2
-    ENDM
 
 ; -----------------------------------------------------------------------------
 ; Shared Variables
@@ -51,14 +30,6 @@ Bank2_Reset
     bit BANK0_HOTSPOT
 
 Bank2_Init
-    ; debug ram
-    lda #$4f
-    ldy #$e0
-.Init
-    sta 0,y
-    iny
-    bne .Init
-
     jsr Bank2_ResetGame
 
     ; joystick delay
@@ -68,12 +39,19 @@ Bank2_Init
     lda #0
     sta REFP0
     sta REFP1
+    sta CurrBet
+    sta CurrBet+1
+    sta CurrBet+2
     lda #[NEW_PLAYER_CHIPS & $ff0000] >> 16
     sta PlayerChips
     lda #[NEW_PLAYER_CHIPS & $00ff00] >> 8
     sta PlayerChips+1
     lda #[NEW_PLAYER_CHIPS & $0000ff]
     sta PlayerChips+2
+
+    ldy #SPRITE_GRAPHICS_IDX
+    jsr Bank2_InitSpriteSpacing
+    jsr Bank2_PositionSprites
 
     lda #DENOM_START_SELECTION
     jsr Bank2_SetBetMenu
@@ -86,8 +64,6 @@ Bank2_FrameStart SUBROUTINE
     ; -------------------------------------------------------------------------
     ; VerticalSync
     ; -------------------------------------------------------------------------
-    lda #%00000000
-    sta VBLANK
     VERTICAL_SYNC
     ; -------------------------------------------------------------------------
 
@@ -95,7 +71,7 @@ Bank2_FrameStart SUBROUTINE
     ; VerticalBlank
     ; -------------------------------------------------------------------------
     ldy GameState
-    lda #30*76/64   ;#TIME_VBLANK
+    lda #TIME_VBLANK-7
     sta TIM64T
 
     ; Play sound associated with the game state
@@ -162,8 +138,6 @@ Bank2_FrameStart SUBROUTINE
     jsr Bank2_InitSpriteSpacing
     jsr Bank2_ClearEvents
 
-    TIMER_WAIT
-
     ; -------------------------------------------------------------------------
     ; kernel
     ; -------------------------------------------------------------------------
@@ -180,6 +154,8 @@ Bank2_FrameStart SUBROUTINE
     lda Bank2_KernelProc,x
     ldy Bank2_KernelBank,x
     tax
+
+    TIMER_WAIT
     jmp Bank2_JumpBank
 
     ; -------------------------------------------------------------------------
@@ -193,7 +169,7 @@ Bank2_Overscan
     lda #TIME_OVERSCAN
     sta TIM64T
 
-    CALL_BANK PROC_BANK0_GAMEIO, 0, 2
+    CALL_BANK PROC_BANK2_GAMEIO, 0, 2
     CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
 
     ; test keypad
@@ -204,9 +180,7 @@ Bank2_Overscan
 
     lda #0
     sta COLUBK
-    sta PF0
-    sta PF1
-    sta PF2
+	sta COLUPF
 
     ldy #MSG_BAR_IDX
     lda Bank2_TextBarPalette+1,y
@@ -214,8 +188,9 @@ Bank2_Overscan
     sta COLUP1
 
     ; read keypad
-    CALL_BANK PROC_BANK0_READKEYPAD, 0, 2
+    ;CALL_BANK PROC_BANK2_READKEYPAD, 0, 2
 
+#if 0
     ldy KeyPress
     beq .NoKey
 .GotKey
@@ -224,6 +199,7 @@ Bank2_Overscan
     lda #0
     sta KeyPress
 .NoKey
+#endif
 
     inc FrameCtr
     TIMER_WAIT
@@ -1130,7 +1106,7 @@ Bank2_PayoutWinnings SUBROUTINE
 ; -----------------------------------------------------------------------------
 Bank2_DashboardNavigate SUBROUTINE
 .CheckRight
-    lda #JOY0_RIGHT_MASK
+    lda #JOY0_RIGHT
     bit JoyRelease
     beq .CheckLeft
 
@@ -1151,7 +1127,7 @@ Bank2_DashboardNavigate SUBROUTINE
     jmp .Update
 
 .CheckLeft
-    lda #JOY0_LEFT_MASK
+    lda #JOY0_LEFT
     bit JoyRelease
     beq .Return
 
@@ -1458,7 +1434,7 @@ WaitTitleScreen SUBROUTINE
 
 ; begins new game
 ActionNewGame SUBROUTINE
-    jsr Bank2_ResetGame
+    jsr Bank2_ResetHand
 
     ; assign to blank sprites
     lda #<BlankCard
@@ -1519,6 +1495,7 @@ WaitPlayerBet SUBROUTINE
     CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
 
 .CheckKeypad
+#if 0
     ; handle keypad number entry
     lda KeyPress
     beq .CheckJoystick
@@ -1526,15 +1503,17 @@ WaitPlayerBet SUBROUTINE
     sta CurrBet+2
     lda #0
     sta KeyPress
+#endif
 
 .CheckJoystick
     ; handle joystick menu navigation: get current selection
     jsr Bank2_GetBetMenu
     sta BetSelect
 
+Debug2
     ; check for joystick input
 .CheckLeft
-    lda #JOY0_LEFT_MASK
+    lda #JOY0_LEFT
     bit JoyRelease
     beq .CheckRight
     lda BetSelect
@@ -1543,7 +1522,7 @@ WaitPlayerBet SUBROUTINE
     jmp .UpdateState
 
 .CheckRight
-    lda #JOY0_RIGHT_MASK
+    lda #JOY0_RIGHT
     bit JoyRelease
     beq .CheckUp
     lda #NUM_SPRITES-1
@@ -1553,7 +1532,7 @@ WaitPlayerBet SUBROUTINE
     jmp .UpdateState
 
 .CheckUp
-    lda #JOY0_UP_MASK
+    lda #JOY0_UP
     bit JoyRelease
     beq .CheckDown
     lda #GS_PLAYER_BET_UP
@@ -1561,7 +1540,7 @@ WaitPlayerBet SUBROUTINE
     jmp .Return
 
 .CheckDown
-    lda #JOY0_DOWN_MASK
+    lda #JOY0_DOWN
     bit JoyRelease
     beq .CheckFire
     lda #GS_PLAYER_BET_DOWN
@@ -1569,7 +1548,7 @@ WaitPlayerBet SUBROUTINE
     jmp .Return
 
 .CheckFire
-    lda #JOY_FIRE_PACKED_MASK
+    lda #JOY_REL_FIRE
     bit JoyRelease
     beq .Return
 
@@ -1913,7 +1892,7 @@ WaitPlayerTurn SUBROUTINE
     ldx CurrPlayer
 
     ; check if player wants to hit
-    lda #JOY0_DOWN_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY_REL_FIRE
     bit JoyRelease
     beq .CheckStand
 
@@ -1939,7 +1918,7 @@ WaitPlayerTurn SUBROUTINE
     jmp .Return
 
 .CheckStand
-    lda #JOY0_UP_MASK
+    lda #JOY0_UP
     bit JoyRelease
     beq .CheckNavigation
 
@@ -1961,7 +1940,7 @@ WaitPlayerTurn SUBROUTINE
 
 WaitPlayerStay SUBROUTINE
     ; check if player wants to stand
-    lda #JOY0_DOWN_MASK | JOY0_UP_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY0_UP | JOY_REL_FIRE
     bit JoyRelease
     beq .CheckNavigation
 
@@ -2100,7 +2079,7 @@ ActionPlayerPostHit SUBROUTINE
 
 WaitPlayerSurrender SUBROUTINE
     ; check if player surrendered
-    lda #JOY0_DOWN_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY_REL_FIRE
     bit JoyRelease
     beq .CheckNavigation
 
@@ -2161,7 +2140,7 @@ WaitPlayerSurrender SUBROUTINE
 
 WaitPlayerDoubleDown SUBROUTINE
     ; check if player double downed
-    lda #JOY0_DOWN_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY_REL_FIRE
     bit JoyRelease
     beq .CheckNavigation
 
@@ -2214,7 +2193,7 @@ WaitPlayerDoubleDown SUBROUTINE
 
 WaitPlayerInsurance SUBROUTINE
     ; check if player chose insurance
-    lda #JOY0_DOWN_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY_REL_FIRE
     bit JoyRelease
     beq .CheckNavigation
 
@@ -2273,7 +2252,7 @@ WaitPlayerInsurance SUBROUTINE
     rts
 
 WaitPlayerSplit SUBROUTINE
-    lda #JOY0_DOWN_MASK | JOY_FIRE_PACKED_MASK
+    lda #JOY0_DOWN | JOY_REL_FIRE
     bit JoyRelease
     bne .CheckSplitAllowed 
     jmp .CheckNavigation        ; branch exceeds 256 bytes
@@ -2730,11 +2709,7 @@ ActionGameOver SUBROUTINE
     rts
 
 WaitIntermission SUBROUTINE
-    ; block trigger input for a duration
-    ldx InputTimer
-    bne .Timer
-
-    lda #JOY_FIRE_PACKED_MASK
+    lda #JOY_REL_FIRE
     bit JoyRelease
     bne .NewGame
 
@@ -2745,7 +2720,7 @@ WaitIntermission SUBROUTINE
     beq .Return
 
     ; player split the hand; allow highlighting current hand .CheckUp
-    lda #JOY0_UP_MASK
+    lda #JOY0_UP
     bit JoyRelease
     beq .CheckDown
 
@@ -2755,7 +2730,7 @@ WaitIntermission SUBROUTINE
     jmp .Return
 
 .CheckDown
-    lda #JOY0_DOWN_MASK
+    lda #JOY0_DOWN
     bit JoyRelease
     beq .Return
 
@@ -2765,10 +2740,15 @@ WaitIntermission SUBROUTINE
     jmp .Return
 
 .NewGame
+    lda #INPUT_DELAY
+    sta InputTimer
+	jsr Bank2_ClearEvents
+
     lda #GS_NEW_GAME
     sta GameState
     jsr Bank2_ApplyCurrBet
     beq .Return
+
     ; not enough chips, go all in
     COPY_INT3 CurrBet, PlayerChips
     lda #0
@@ -2777,11 +2757,6 @@ WaitIntermission SUBROUTINE
     sta PlayerChips+2
 
 .Return
-    rts
-
-.Timer
-    dex
-    stx InputTimer
     rts
 
 WaitBrokeBank1 SUBROUTINE
@@ -2868,11 +2843,29 @@ Bank2_ClearEvents SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
-; Desc:     Erases game memory.
+; Desc:     Erases game back to init state.
 ; Inputs:
 ; Outputs:
 ; -----------------------------------------------------------------------------
 Bank2_ResetGame
+    lda #0
+    ldx #<BankVarsEnd
+.Clear
+    sta -1,x
+    dex
+    cpx #<BankVars
+    bne .Clear
+
+    lda #GS_NEW_GAME
+    sta GameState
+    rts
+
+; -----------------------------------------------------------------------------
+; Desc:     Erases hand state.
+; Inputs:
+; Outputs:
+; -----------------------------------------------------------------------------
+Bank2_ResetHand
     ; clear memory
     ldx #0
     ldy #(MemBlockEnd - MemBlockStart)
@@ -2883,17 +2876,9 @@ Bank2_ResetGame
 
     lda #GS_NEW_GAME
     sta GameState
-
-    ; clear any joystick events
-    lda #0
-    sta JoyRelease
-    lda #$ff
-    sta JoySWCHA
-    sta JoySWCHB
-    sta JoyINPT4
     rts
 
-    include "../shared/lib/task-8bit.asm"
+    include "../atarilib/lib/task-8bit.asm"
 
     ; define procedures common to multiple banks
     INCLUDE_MENU_SUBS 2
@@ -2929,7 +2914,7 @@ Bank2_DashboardFlagsTable
     dc.b FLAGS_INSURANCE_ALLOWED        ; DASH_INSURANCE_IDX
     dc.b FLAGS_SPLIT_ALLOWED            ; DASH_SPLIT_IDX
 
-    SPRITE_OPTIONS 2
+    INCLUDE_SPRITE_OPTIONS 2
 
 ; These must be BCD values.
 Bank2_CardPointValue
@@ -2975,10 +2960,10 @@ Bank2_DenomValue2
 
     include "lib/test.asm"
 
-    MULTIPLY_TABLE Bank2_, 3, 7
-    MULTIPLY_TABLE Bank2_, 4, 10
-    MULTIPLY_TABLE Bank2_, 6, 20
-    POWER_TABLE Bank2_, 2, 8
+    INCLUDE_MULTIPLY_TABLE 2, 3, 7
+    INCLUDE_MULTIPLY_TABLE 2, 4, 10
+    INCLUDE_MULTIPLY_TABLE 2, 6, 20
+    INCLUDE_POWER_TABLE 2, 2, 8
 
     include "sys/bank2_palette.asm"
 
@@ -3096,7 +3081,7 @@ Bank2_GameStateSound
     dc.b GS_PLAYER_PUSH, SOUND_ID_PUSH
     dc.b 0
 
-    SPRITE_POSITIONING 2
+    INCLUDE_SPRITE_POSITIONING 2
 
 ; -----------------------------------------------------------------------------
 ; Shared procedures
@@ -3104,14 +3089,14 @@ Bank2_GameStateSound
 
 PROC_ANIMATIONADD           = 0
 PROC_ANIMATIONTICK          = 1
-PROC_BANK0_BETTINGKERNEL    = 2
-PROC_BANK0_GAMEIO           = 3
-PROC_BANK3_PLAYKERNEL       = 4
+PROC_BANK2_BETTINGKERNEL    = 2
+PROC_BANK2_GAMEIO           = 3
+PROC_BANK2_PLAYKERNEL       = 4
 PROC_SOUNDQUEUEPLAY         = 5
 PROC_SOUNDQUEUEPLAY2        = 6
 PROC_SOUNDQUEUETICK         = 7
-PROC_BANK0_READKEYPAD       = 8
-PROC_BANK1_DEPARTKERNEL     = 9
+PROC_BANK2_READKEYPAD       = 8
+PROC_BANK2_DEPARTKERNEL     = 9
 
 Bank2_ProcTableLo
     dc.b <AnimationAdd
@@ -3144,9 +3129,9 @@ Bank2_KernelKey
     dc.b GS_BROKE_BANK1, GS_BROKE_BANK2
     dc.b 0
 Bank2_KernelProc
-    ds.b 4, PROC_BANK0_BETTINGKERNEL
-    ds.b 2, PROC_BANK1_DEPARTKERNEL
-    ds.b 1, PROC_BANK3_PLAYKERNEL
+    ds.b 4, PROC_BANK2_BETTINGKERNEL
+    ds.b 2, PROC_BANK2_DEPARTKERNEL
+    ds.b 1, PROC_BANK2_PLAYKERNEL
 Bank2_KernelBank
     ds.b 4, 0
     ds.b 2, 1

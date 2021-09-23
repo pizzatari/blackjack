@@ -5,8 +5,6 @@ SWITCH_BW_MASK              = %00001000
 SWITCH_SELECT_MASK          = %00000010
 SWITCH_RESET_MASK           = %00000001
 
-JOY_FIRE_MASK               = %10000000
-
 JOY0_BITS                   = %11110000
 JOY1_BITS                   = %00001111
 
@@ -20,5 +18,4 @@ JOY1_LEFT_MASK              = %00000100
 JOY1_DOWN_MASK              = %00000010
 JOY1_UP_MASK                = %00000001
 
-JOY0_FIRE_MASK              = %00000001
-JOY_FIRE_PACKED_MASK        = %00001000
+JOY_REL_FIRE                = %00001000

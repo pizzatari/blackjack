@@ -45,11 +45,11 @@ Bank3_Reset
     bit BANK0_HOTSPOT
 
 Bank3_PlayKernel SUBROUTINE
-	; 7 lines of vertical blank are reserved for additional setup
+    ; 7 lines of vertical blank are reserved for additional setup
     lda #7*76/64
     sta TIM64T
 
-	jsr Bank3_SetupIndexes
+    jsr Bank3_SetupIndexes
     jsr Bank3_SetupMessageBar
     ldy #OPT_BAR_IDX
     jsr Bank3_SetColors2
@@ -81,9 +81,9 @@ Bank3_PlayKernel SUBROUTINE
 
     TIMER_WAIT
 
-	; lower playfield priority
-	lda #0
-	sta CTRLPF
+    ; lower playfield priority
+    lda #0
+    sta CTRLPF
 
     ldx #DEALER_IDX
     ldy PlayerNumCards,x
@@ -97,20 +97,20 @@ Bank3_PlayKernel SUBROUTINE
     sta TIM64T
 
     ldy #SPRITE_CARDS_IDX
-    jsr Bank3_PositionSprites	; 9 (9)
+    jsr Bank3_PositionSprites    ; 9 (9)
 
     ; hide MOVE line
-    sta COLUBK  				; 3 (12)
-    ldy #COLOR_CARDS_IDX		; 2 (14)
+    sta COLUBK                  ; 3 (12)
+    ldy #COLOR_CARDS_IDX        ; 2 (14)
 
     sta WSYNC
-    jsr Bank3_SetColors2		; 36 (36)
+    jsr Bank3_SetColors2        ; 36 (36)
     sta WSYNC
     jsr Bank3_SetTableau
 
-	; lower playfield priority
-	lda #0
-	sta CTRLPF
+    ; lower playfield priority
+    lda #0
+    sta CTRLPF
 
     sta WSYNC
 
@@ -1429,7 +1429,7 @@ Bank3_SetupIndexes SUBROUTINE
     sta AnimRow
     stx AnimIdx
 .Found
-	rts
+    rts
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Resets sprites to blank state. This is the fixed time part of
@@ -2201,7 +2201,7 @@ Bank3_ColorMatrix
 ; -----------------------------------------------------------------------------
 ; Shared procedures
 ; -----------------------------------------------------------------------------
-PROC_BANK3_OVERSCAN    		= 0
+PROC_BANK3_OVERSCAN            = 0
 
 Bank3_ProcTableLo
     dc.b <Bank2_Overscan
@@ -2213,7 +2213,7 @@ Bank3_ProcTableHi
 
     INCLUDE_BANKSWITCH_SUBS 3, BANK3_HOTSPOT
 
-	; bank switch hotspots
+    ; bank switch hotspots
     ORG BANK3_ORG + $ff6
     RORG BANK3_RORG + $ff6
     ds.b 4, 0

@@ -181,7 +181,7 @@ Bank2_Overscan
 
     lda #0
     sta COLUBK
-	sta COLUPF
+    sta COLUPF
 
     ldy #MSG_BAR_IDX
     lda Bank2_TextBarPalette+1,y
@@ -2743,7 +2743,7 @@ WaitIntermission SUBROUTINE
 .NewGame
     lda #INPUT_DELAY_BETTING
     sta InputTimer
-	jsr Bank2_ClearEvents
+    jsr Bank2_ClearEvents
 
     lda #GS_NEW_GAME
     sta GameState
@@ -3142,7 +3142,7 @@ Bank2_KernelBank
     RORG BANK2_RORG + $ff6-BS_SIZEOF
     INCLUDE_BANKSWITCH_SUBS 2, BANK2_HOTSPOT
 
-	; bank switch hotspots
+    ; bank switch hotspots
     ORG BANK2_ORG + $ff6
     RORG BANK2_RORG + $ff6
     ds.b 4, 0

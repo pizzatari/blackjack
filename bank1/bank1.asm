@@ -29,7 +29,7 @@
 
 ; Kernel row extents (starting positions)
 ROW_HEIGHT      = 32
-ROW6            = 254
+ROW6            = 252
 ROW5            = 256-[ROW_HEIGHT*2]
 ROW4            = ROW5-ROW_HEIGHT-1
 ROW3            = ROW4-ROW_HEIGHT
@@ -46,7 +46,6 @@ SHIP_TOP_Y      = 140
 
 CASINO_BEG_COLOR= $10
 CASINO_END_COLOR= $1e
-DEF_BG_COLOR    = $e0
 
 ; -----------------------------------------------------------------------------
 ; Local Variables
@@ -123,7 +122,7 @@ Bank1_LandingInit
 Bank1_FrameLoop
     VERTICAL_SYNC
 
-    lda #TIME_VBLANK_TITLE
+    lda #TIME_VBLANK_TITLE+1
     sta TIM64T
     jsr Bank1_VerticalBlank
 
@@ -221,7 +220,13 @@ Bank1_FrameLoop
 .Continue1
 
     ldx ScreenTopY
+
     TIMER_WAIT
+
+    lda #0
+    sta WSYNC
+    sta VBLANK
+
     jmp Bank1_TopKernel         ; subroutine call
 
 KernelReturn
@@ -262,21 +267,15 @@ Bank1_VerticalBlank SUBROUTINE
     ldx #DEF_BG_COLOR
     ldy #%00110001
     sta WSYNC
-
     sta HMOVE                       ; 3 (3)
-    sta VBLANK                      ; 3 (6)
     stx COLUBK                      ; 3 (9)
-
     sta GRP0                        ; 3 (12)
     sta GRP1                        ; 3 (15)
-
     ; pf reflected; ballsize = 8
     sty CTRLPF                      ; 2 (17)
     sty COLUPF                      ; 3 (20)
-
     ; turn on v. delay for casino
     sta VDELP1                      ; 3 (23)
-
     lda CasinoColor                 ; 3 (26)
     sta COLUP1                      ; 3 (29)
 
@@ -811,6 +810,9 @@ Bank1_ReadJoystick SUBROUTINE
     bne .Return
 
     jsr SoundClear
+
+    lda #0
+    sta InputTimer
 
     ; reset stack
     pla

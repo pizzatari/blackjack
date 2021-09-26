@@ -114,11 +114,12 @@ TIME_CHIPS_POT              = 3*76/8    ; TIM8T (28.5)
 TIME_CARD_SETUP             = 72        ; TIM8T (72)
 TIME_CARD_HOLE_SETUP        = 2*76/8    ; TIM8T (19)
 TIME_CARD_FLIP_SETUP        = 3*76/8    ; TIM8T (19)
-TIME_CHIP_MENU_SETUP        = 2*76/8    ; TIM8T (19)
+TIME_CHIP_MENU_SETUP        = 3*76/8    ; TIM8T (19)
 TIME_CHIP_DENOM             = 6*76/8    ; TIM8T (57)
 TIME_STATUS_BAR             = 4*76/8    ; TIM8T (38)
 
 INPUT_DELAY                 = 30        ; num frames
+INPUT_DELAY_BETTING         = 10        ; num frames
 
 NUSIZE_3_MEDIUM             = %00000110
 NUSIZE_3_CLOSE              = %00000011
@@ -127,7 +128,7 @@ NUSIZE_3_CLOSE              = %00000011
 SPRITE_WIDTH                = 8
 
 ; Game sections
-MSG_ROW_HEIGHT              = 23
+MSG_ROW_HEIGHT              = 21
 DLR_ROW_HEIGHT              = 50
 
 ; Objects
@@ -462,6 +463,8 @@ PlayerPileScore             ds.b NUM_HANDS      ; score of off screen cards
 SpritePtrs                  ds.w NUM_VISIBLE_CARDS
 TempPtr                     ds.w 1
 TempPtr2                    ds.w 1
+
+TempInt                     = TempPtr
 Arg1                        = TempPtr2
 Arg2                        = TempPtr2+1
 
@@ -488,3 +491,10 @@ PAGE_CURR_BANK SET 2
 
 PAGE_CURR_BANK SET 3
     include "bank3/bank3.asm"
+
+    IFCONST TEST_RAND_ON
+        IF TEST_RAND_ON > 0
+            ECHO ""
+            ECHO "** Test cards enabled (", (TEST_RAND_ON)d, ")**"
+        ENDIF
+    ENDIF

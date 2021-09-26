@@ -19,6 +19,13 @@ NUM_TEST_RAND SET * - TestRandInts
 
     IF TEST_RAND_ON == 2
 TestCards
+    ; deal 6 cards per player
+    dc.b $02, $12, $22, $32
+    dc.b $03, $13, $33, $33
+    dc.b $04, $14, $44, $44
+    dc.b $05, $15, $55, $55
+    dc.b $06, $16, $66, $66
+
     ; player & dealer have blackjack
     dc.b $01, $79, $3a, $99
 

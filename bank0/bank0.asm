@@ -29,12 +29,14 @@ Bank0_Init
     CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
     CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
 
-Bank0_TitleLoop SUBROUTINE
+Bank0_FrameStart SUBROUTINE
     VERTICAL_SYNC
+    jsr Bank0_VerticalBlank
+    jsr Bank0_TitleKernel
+    jsr Bank0_Overscan
+    jmp Bank0_FrameStart
 
-    ; --------------
-    ; Vertical blank
-    ; --------------
+Bank0_VerticalBlank SUBROUTINE
     lda #TIME_VBLANK_TITLE
     sta TIM64T
 
@@ -51,22 +53,37 @@ Bank0_TitleLoop SUBROUTINE
 
     ldy #SPRITE_GRAPHICS_IDX
     jsr Bank0_PositionSprites
-
     ldy #SPRITE_GRAPHICS_IDX
     jsr Bank0_InitSpriteSpacing
-
     jsr Bank0_UpdateHighlights
+
     TIMER_WAIT
 
     lda #0
     sta WSYNC
     sta VBLANK
+    rts
+    
+Bank0_TitleKernel SUBROUTINE
+    SLEEP_LINES 25
+    jsr Bank0_TitleLogoKernel
 
-    ; --------------
-    ; Title kernel
-    ; --------------
-    SLEEP_LINES 26
+    SLEEP_LINES 12
+    jsr Bank0_TitleCardKernel
 
+    SLEEP_LINES 12
+    jsr Bank0_TitleEditionKernel
+
+    SLEEP_LINES 5
+    jsr Bank0_TitleMenuKernel
+
+    SLEEP_LINES 3
+    jsr Bank0_TitleCopyrightKernel
+
+    SLEEP_LINES 9
+    rts
+
+Bank0_TitleLogoKernel SUBROUTINE
     ; cycle the logo color
     lda FrameCtr
     and #%00111100
@@ -76,7 +93,6 @@ Bank0_TitleLoop SUBROUTINE
     adc #$e0
     sta TIM64T
     jsr Bank0_DrawTitleGraphic
-
     lda #0
     sta WSYNC
     sta PF0
@@ -85,8 +101,9 @@ Bank0_TitleLoop SUBROUTINE
     sta COLUP0
     sta COLUP1
     sta COLUPF
+    rts
 
-    SLEEP_LINES 12
+Bank0_TitleCardKernel SUBROUTINE
     lda #<Bank0_CardPalette     ; 2 (19)
     sta TempPtr                 ; 3 (22)
     lda #>Bank0_CardPalette     ; 2 (24)
@@ -115,8 +132,9 @@ Bank0_TitleLoop SUBROUTINE
     sta COLUPF
     sta COLUP0
     sta COLUP1
+    rts
 
-    SLEEP_LINES 12
+Bank0_TitleEditionKernel SUBROUTINE
     SET_6_PAGE_POINTERS SpritePtrs, Bank0_TitleEdition
 
     lda #>Bank0_EditionPalette  ; 2 (2)
@@ -144,14 +162,15 @@ Bank0_TitleLoop SUBROUTINE
     sta GRP0                    ; 3 (11)
     sta COLUP0                  ; 3 (14)
     sta COLUP1                  ; 3 (17)
+    rts
 
+Bank0_TitleMenuKernel SUBROUTINE
     lda #<Bank0_MenuPalette     ; 2 (19)
     sta TempPtr                 ; 3 (22)
     lda #>Bank0_MenuPalette     ; 2 (24)
     sta TempPtr+1               ; 3 (27)
 
     SET_6_LOW_POINTERS SpritePtrs, Bank0_TitleMenu
-    SLEEP_LINES 6
 
     ldx #COLOR_BLACK
     ldy #TITLE_MENU_HEIGHT-1
@@ -171,7 +190,9 @@ Bank0_TitleLoop SUBROUTINE
     sta GRP0                    ; 3 (11)
     sta COLUP0                  ; 3 (14)
     sta COLUP1                  ; 3 (17)
+    rts
 
+Bank0_TitleCopyrightKernel SUBROUTINE
     lda #>Bank0_CopyPalette     ; 2 (19)
     sta TempPtr+1               ; 3 (22)
     lda #<Bank0_CopyPalette     ; 2 (24)
@@ -180,7 +201,6 @@ Bank0_TitleLoop SUBROUTINE
     sta TempPtr                 ; 3 (32)
 
     SET_6_LOW_POINTERS SpritePtrs, Bank0_TitleCopyright
-    SLEEP_LINES 3
 
     ldx #COLOR_BLACK            ; 2 (8)
     ldy #TITLE_COPY_HEIGHT-1    ; 2 (2)
@@ -196,12 +216,9 @@ Bank0_TitleLoop SUBROUTINE
     sta COLUP1                  ; 3 (15)
     sta VDELP0                  ; 3 (18)
     sta VDELP1                  ; 3 (21)
+    rts
 
-    SLEEP_LINES 9
-
-    ; ------------
-    ; Overscan
-    ; ------------
+Bank0_Overscan SUBROUTINE
     lda #TIME_OVERSCAN
     sta TIM64T
 
@@ -215,84 +232,239 @@ Bank0_TitleLoop SUBROUTINE
     lda #JOY_REL_FIRE
     bit JoyRelease
     bne .JumpToBank
-    jsr Bank0_ReadSwitches
 
+    jsr Bank0_ReadSwitches
     sta WSYNC
     TIMER_WAIT
-    jmp Bank0_TitleLoop
+    rts
 
 .JumpToBank
+    pla
+    pla
     JUMP_BANK PROC_BANK0_LANDINGINIT, 1, 0
 
-; -----------------------------------------------------------------------------
-; SUBROUTINES
-; -----------------------------------------------------------------------------
+Bank0_BettingKernel SUBROUTINE
+	; 7 lines of vertical blank are reserved for additional setup
+    lda #7*76/64
+    sta TIM64T
 
-; -----------------------------------------------------------------------------
-; Desc:     Sets up global variables.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_InitGlobals SUBROUTINE
-    lda #GS_START_STATE
-    sta GameState
-    lda #%00001111
-    sta SWACNT
-    lda SWCHA
-    sta JoySWCHA
-    lda SWCHB
-    sta JoySWCHB
-    lda INPT4
-    sta JoyINPT4
-    ldx #1
-    stx RandNum
+    ldy #MSG_BAR_IDX
+    jsr Bank0_SetColors2
+    jsr Bank0_SetupOptionsPrompt           ; "Options"
 
-    IF TEST_RAND_ON == 2
-    ldx #0
-    stx RandAlt
-    ELSE
-    stx RandAlt
-    ENDIF
+    SET_POINTER IntPtr, CurrBet
 
-    lda #NUM_DECKS-1 & FLAGS_LATE_SURRENDER & FLAGS_HIT_SOFT17
-    sta GameOpts
+	; 8 lines of vertical blank are reserved for additional setup
+    TIMER_WAIT
 
-    ; begin counter after 2nd highlight, because it flashes on loading
-    ldx #TITLE_COPY_HEIGHT
-    stx FrameCtr
-    rts
+    lda #0
+	sta WSYNC
+    sta VBLANK
+    
+    lda #MSG_ROW_HEIGHT*76/64
+    sta TIM64T
 
-; -----------------------------------------------------------------------------
-; Desc:     Sets the sprite pointers to blank sprites.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_ClearSprites SUBROUTINE
-    ; assign to blank sprites
-    lda #<Bank0_BlankSprite
-    ldx #>Bank0_BlankSprite
-    ldy #NUM_VISIBLE_CARDS*2-2
-.Loop
-    sta SpritePtrs,y
-    stx SpritePtrs+1,y
-    dey
-    dey
-    bpl .Loop
-    rts
+    ; message prompt section --------------------------------------------------
+    ldy #MESSAGE_TEXT_HEIGHT-1
+    jsr Bank0_DrawMessageBar
 
-; -----------------------------------------------------------------------------
-; Desc:     Sets sprite spacing gaps.
-; Inputs:   Y register (sprite index)
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_InitSpriteSpacing SUBROUTINE
-    lda Bank0_SpriteSize,y
-    sta NUSIZ0
-    sta NUSIZ1
-    lda Bank0_SpriteDelay,y
-    sta VDELP0
-    sta VDELP1
-    rts
+    jsr Bank0_SetupOptionsDash
+    ldy #DASHOPTS_HEIGHT-1
+    jsr Bank0_DrawMessageBar
+
+    TIMER_WAIT
+
+    ; tableau section (upper) -------------------------------------------------
+    ldy #SPRITE_CARDS_IDX
+    jsr Bank0_PositionSprites
+
+    ; hide MOVE line
+    lda #0
+	sta COLUPF
+	sta COLUBK
+	sta CTRLPF
+
+    ldy #COLOR_CHIPS_IDX
+    sta WSYNC
+    jsr Bank0_SetColors2
+	sta WSYNC
+    jsr Bank0_SetTableau
+
+    ldy #SPRITE_CARDS_IDX
+    jsr Bank0_SetSpriteOptions
+    jsr Bank0_ClearSprites
+
+    SLEEP_LINES 28
+
+    ; casino chips section ----------------------------------------------------
+    lda CurrBet
+    sta TempInt
+    lda CurrBet+1
+    sta TempInt+1
+    lda CurrBet+2
+    sta TempInt+2
+
+    TIMED_JSR Bank0_SetupChipSprites, TIME_CHIPS_POT, TIM8T
+
+    lda #<Bank0_ChipPalette
+    sta TempPtr
+    lda #>Bank0_ChipPalette
+    sta TempPtr+1
+    ldy #CHIPS_HEIGHT-1
+    jsr Bank0_Draw6ColorSprites
+
+    Sta WSYNC
+
+    ; bet selection section ---------------------------------------------------
+
+	; top half (red)
+    ldy #SPRITE_GRAPHICS_IDX
+    jsr Bank0_SetSpriteOptions
+    jsr Bank0_PositionSprites
+
+    lda #0                  ; 2 (11)
+    sta COLUBK              ; 3 (14)
+	sta COLUPF				; 3 (17)
+
+    ldy #MSG_BAR_IDX
+	sta WSYNC
+    jsr Bank0_SetColors2
+
+    jsr Bank0_SetupBettingPrompt    ; prompt: "Place Your Bet"
+    ldy #MESSAGE_TEXT_HEIGHT-1
+    jsr Bank0_DrawMessageBar
+
+	; bottom half (grey)
+    jsr Bank0_SetupInteger
+
+    ldy #SPRITE_BET_IDX
+    jsr Bank0_SetSpriteOptions
+    jsr Bank0_PositionSprites
+
+    ; hide MOVE line
+    lda #$0                 ; 2 (2)
+    sta COLUBK              ; 3 (5)
+	sta PF0					; 3 (3)
+	sta PF1					; 3 (3)
+	sta PF2					; 3 (3)
+
+    ldy #POPUP_BAR_IDX
+    jsr Bank0_SetColors
+    lda #$0e
+    sta COLUP0
+    sta COLUP1
+    ldy #STATUS_TEXT_HEIGHT
+    sta WSYNC
+    sta WSYNC
+    jsr Bank0_Draw48PixelSprite
+    sta WSYNC
+
+    ldy #SPRITE_CARDS_IDX
+    jsr Bank0_PositionSprites
+
+    ; hide MOVE line
+    lda #$0                 ; 2 (2)
+    sta COLUBK              ; 3 (5)
+	sta COLUPF				; 3 (8)
+
+    ; tableau section (lower) -------------------------------------------------
+    ldy #COLOR_CHIPS_IDX
+    sta WSYNC
+    jsr Bank0_SetColors2
+    sta WSYNC
+    jsr Bank0_SetTableau
+
+    ldy #SPRITE_CARDS_IDX
+    jsr Bank0_SetSpriteOptions
+
+    SLEEP_LINES 14
+
+    lda #CHIP_COLOR
+    sta COLUP0
+    sta COLUP1
+
+    lda PlayerChips
+    sta TempInt
+    lda PlayerChips+1
+    sta TempInt+1
+    lda PlayerChips+2
+    sta TempInt+2
+
+    TIMED_JSR Bank0_SetupChipSprites, TIME_CHIPS_POT, TIM8T
+
+    lda #<Bank0_ChipPalette
+    sta TempPtr
+    lda #>Bank0_ChipPalette
+    sta TempPtr+1
+    ldy #CHIPS_HEIGHT-1
+    jsr Bank0_Draw6ColorSprites
+
+    SLEEP_LINES 14
+
+    jsr Bank0_ClearGraphicsOpts
+    lda #CHIP_MENU_COLOR
+    sta COLUP0
+    sta COLUP1
+
+    ; player's chip section ---------------------------------------------------
+
+    ; chip denomination section -----------------------------------------------
+
+    lda #0
+    ldy #DENOMS_HEIGHT-1
+    sta WSYNC
+    sta GRP0
+    sta GRP1
+    sta WSYNC
+    DRAW_6_GRAPHIC Bank0_DenomSprite
+
+    lda #0
+    sta WSYNC
+    sta GRP0
+    sta GRP1
+
+    ldy #TIMES_HEIGHT-1
+    sta WSYNC
+    DRAW_2_GRAPHIC Bank0_TimesSprite, Bank0_TimesSprite
+
+    TIMED_JSR Bank0_SetupMenuChips, TIME_CHIP_MENU_SETUP, TIM8T
+
+    lda #<(Bank0_CardPalette+3)
+    sta TempPtr
+    lda #>(Bank0_CardPalette+3)
+    sta TempPtr+1
+    ldy #CHIPS_HEIGHT-1
+    jsr Bank0_Draw6ColorSprites
+
+    ; status bar section -----------------------------------------------------
+    SET_POINTER IntPtr, PlayerChips
+    TIMED_JSR Bank0_SetupInteger, TIME_STATUS_BAR, TIM8T
+
+    ldy #SPRITE_STATUS_IDX
+    jsr Bank0_SetSpriteOptions
+    jsr Bank0_PositionSprites
+
+    ; hide MOVE line
+    lda #$0                 ; 2 (2)
+    sta PF0                 ; 3 (8)
+    sta PF1                 ; 3 (11)
+    sta PF2                 ; 3 (14)
+    sta COLUBK              ; 3 (5)
+
+    ldy #MSG_BAR_IDX
+    jsr Bank0_SetColors
+    ldy #STATUS_TEXT_HEIGHT
+    jsr Bank0_Draw48PixelSprite
+
+    ; cleanup -----------------------------------------------------------------
+    lda #0
+    sta WSYNC
+    sta COLUBK
+    sta PF0
+    sta PF1
+    jsr Bank0_ClearGraphicsOpts
+    ; saving 2 bytes of stack by jumping
+    JUMP_BANK PROC_BANK0_OVERSCAN, 2, 0
 
 Bank0_UpdateHighlights SUBROUTINE   ; 6 (6)
     ldx #0                          ; 2 (8)
@@ -321,23 +493,6 @@ Bank0_UpdateHighlights SUBROUTINE   ; 6 (6)
     stx PalIdx2                     ; 3 (52)
     rts                             ; 6 (58)
 
-    INCLUDE_POSITIONING_SUBS 0
-
-    ALIGN 256, FILLER_CHAR
-    PAGE_BOUNDARY_SET
-
-    ; Bank tailored subroutines from include/screen.h
-    INCLUDE_SPRITE_POSITIONING 0
-    PAGE_BOUNDARY_CHECK "Bank0 position"
-
-    ; Bank tailored subroutines from include/menu.h
-    INCLUDE_MENU_SUBS 0
-
-; -----------------------------------------------------------------------------
-; Desc:     Reads the console switches and assigns state variables.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
 Bank0_ReadSwitches SUBROUTINE
     lda SWCHB
     tax
@@ -595,302 +750,6 @@ Bank0_ReadKeypad SUBROUTINE
     rts
 #endif
 
-Bank0_KeyBits
-    dc.b %00001110, %00001101, %00001011, %00000111
-Bank0_KeyCode
-    dc.b 0, 3, 6, 9
-
-; -----------------------------------------------------------------------------
-; Desc:     Implements the game screen kernel.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_BettingKernel SUBROUTINE
-	; 7 lines of vertical blank are reserved for additional setup
-    lda #7*76/64
-    sta TIM64T
-
-    ldy #MSG_BAR_IDX
-    jsr Bank0_SetColors2
-    jsr Bank0_SetupOptionsPrompt           ; "Options"
-
-    SET_POINTER IntPtr, CurrBet
-
-	; 8 lines of vertical blank are reserved for additional setup
-    TIMER_WAIT
-
-    lda #0
-	sta WSYNC
-    sta VBLANK
-    
-    lda #MSG_ROW_HEIGHT*76/64
-    sta TIM64T
-
-    ; message prompt section --------------------------------------------------
-    ldy #MESSAGE_TEXT_HEIGHT-1
-    jsr Bank0_DrawMessageBar
-
-    jsr Bank0_SetupOptionsDash
-    ldy #DASHOPTS_HEIGHT-1
-    jsr Bank0_DrawMessageBar
-
-    TIMER_WAIT
-
-    ; tableau section (upper) -------------------------------------------------
-    ldy #SPRITE_CARDS_IDX
-    jsr Bank0_PositionSprites
-
-    ; hide MOVE line
-    lda #0
-	sta COLUPF
-	sta COLUBK
-	sta CTRLPF
-
-    ldy #COLOR_CHIPS_IDX
-    sta WSYNC
-    jsr Bank0_SetColors2
-	sta WSYNC
-    jsr Bank0_SetTableau
-
-    ldy #SPRITE_CARDS_IDX
-    jsr Bank0_SetSpriteOptions
-    jsr Bank0_ClearSprites
-
-    SLEEP_LINES 28
-
-    ; casino chips section ----------------------------------------------------
-    TIMED_JSR Bank0_SetupChipsPot, TIME_CHIPS_POT, TIM8T
-    ldy #CHIPS_HEIGHT-1
-    jsr Bank0_Draw6Sprites
-
-    SLEEP_LINES 8
-
-    ; bet selection section ---------------------------------------------------
-
-	; top half (red)
-    ldy #SPRITE_GRAPHICS_IDX
-    jsr Bank0_SetSpriteOptions
-    jsr Bank0_PositionSprites
-
-    lda #0                  ; 2 (11)
-    sta COLUBK              ; 3 (14)
-	sta COLUPF				; 3 (17)
-
-    ldy #MSG_BAR_IDX
-	sta WSYNC
-    jsr Bank0_SetColors2
-
-    jsr Bank0_SetupBettingPrompt    ; prompt: "Place Your Bet"
-    ldy #MESSAGE_TEXT_HEIGHT-1
-    jsr Bank0_DrawMessageBar
-
-	; bottom half (grey)
-    jsr Bank0_SetupInteger
-
-    ldy #SPRITE_BET_IDX
-    jsr Bank0_SetSpriteOptions
-    jsr Bank0_PositionSprites
-
-    ; hide MOVE line
-    lda #$0                 ; 2 (2)
-    sta COLUBK              ; 3 (5)
-	sta PF0					; 3 (3)
-	sta PF1					; 3 (3)
-	sta PF2					; 3 (3)
-
-    ldy #POPUP_BAR_IDX
-    jsr Bank0_SetColors
-    lda #$0e
-    sta COLUP0
-    sta COLUP1
-    ldy #STATUS_TEXT_HEIGHT
-    sta WSYNC
-    sta WSYNC
-    jsr Bank0_Draw48PixelSprite
-    sta WSYNC
-
-    ldy #SPRITE_CARDS_IDX
-    jsr Bank0_PositionSprites
-
-    ; hide MOVE line
-    lda #$0                 ; 2 (2)
-    sta COLUBK              ; 3 (5)
-	sta COLUPF				; 3 (8)
-
-    ; tableau section (lower) -------------------------------------------------
-    ldy #COLOR_CHIPS_IDX
-    sta WSYNC
-    jsr Bank0_SetColors2
-    sta WSYNC
-    jsr Bank0_SetTableau
-
-    ldy #SPRITE_CARDS_IDX
-    jsr Bank0_SetSpriteOptions
-
-    SLEEP_LINES 34
-
-    ; player's chip section ---------------------------------------------------
-    jsr Bank0_ClearGraphicsOpts
-    lda #CHIP_COLOR
-    sta COLUP0
-    sta COLUP1
-
-    TIMED_JSR Bank0_SetupPlayerChips, TIME_CHIP_MENU_SETUP, TIM8T
-    ldy #CHIPS_HEIGHT-1
-    jsr Bank0_Draw6Sprites
-
-    ; chip denomination section -----------------------------------------------
-    sta WSYNC
-    ldy #TIMES_HEIGHT-1
-    DRAW_2_GRAPHIC Bank0_TimesSprite, Bank0_TimesSprite
-
-    lda #0
-    ldy #DENOMS_HEIGHT-1
-    sta WSYNC
-    sta GRP0
-    sta GRP1
-    sta WSYNC
-
-    DRAW_6_GRAPHIC Bank0_DenomSprite
-
-    lda #0
-    sta WSYNC
-    sta GRP0
-    sta GRP1
-
-    ; status bar section -----------------------------------------------------
-    SET_POINTER IntPtr, PlayerChips
-    TIMED_JSR Bank0_SetupInteger, TIME_STATUS_BAR, TIM8T
-
-    ldy #SPRITE_STATUS_IDX
-    jsr Bank0_SetSpriteOptions
-    jsr Bank0_PositionSprites
-
-    ; hide MOVE line
-    lda #$0                 ; 2 (2)
-    sta PF0                 ; 3 (8)
-    sta PF1                 ; 3 (11)
-    sta PF2                 ; 3 (14)
-    sta COLUBK              ; 3 (5)
-
-    ldy #MSG_BAR_IDX
-    jsr Bank0_SetColors
-    ldy #STATUS_TEXT_HEIGHT
-    jsr Bank0_Draw48PixelSprite
-
-    ; cleanup -----------------------------------------------------------------
-    lda #0
-    sta WSYNC
-    sta COLUBK
-    sta PF0
-    sta PF1
-    jsr Bank0_ClearGraphicsOpts
-
-    ; saving 2 bytes of stack by jumping
-    JUMP_BANK PROC_BANK0_OVERSCAN, 2, 0
-
-; -----------------------------------------------------------------------------
-; Desc:     Draws a big sprite.
-; Notes:    Placing here because this routine must not cross a page boundary.
-; Inputs:   X register (the sprite's height)
-; Ouputs:
-; -----------------------------------------------------------------------------
-; VDEL sequence
-;           Delay0  Live0   Delay1  Live1   On Screen
-;------------------------------------------------------ begin loop
-; GRP0:     0-1
-; GRP1:     0-1'    0-1'    1-2 
-; GRP0:     0-3     0-1     1-2'    1-2'
-; ...
-;                                           0-1
-; GRP1:     0-3'    0-3'    1-4     1-2     1-2
-; GRP0:     0-5     0-3     1-4'    1-4'    0-3
-; GRP1:     0-5'    0-5'    1-6     1-4     1-4
-; GRP0:     0-7     0-5     1-6     1-6     0-5
-;                                           1-6
-;------------------------------------------------------ begin loop
-; GRP0:     0-8     0-7     1-6'    1-6'
-; GRP1:     0-8'    0-8'    1-9     1-6
-; GRP0:     0-10    0-8     1-9'    1-9'
-; ...
-;                                           0-8
-; GRP1:     0-10'   0-10'   1-11    1-9     1-9
-; GRP0:     0-12    0-10    1-11'   1-11'   0-10
-; GRP1:     0-12'   0-12'   1-13    1-11    1-11
-; GRP0:     0-14    0-12    1-13    1-13    0-12
-;
-
-    PAGE_BOUNDARY_SET
-
-; -----------------------------------------------------------------------------
-; Desc:     Draws a multi-color message bar.
-; Inputs:        
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_DrawMessageBar SUBROUTINE
-    DRAW_48_COLOR_SPRITE SpritePtrs, Bank0_MessagePalette
-    lda #0
-    sta GRP0
-    sta GRP1
-    sta GRP0
-    rts
-
-    PAGE_BOUNDARY_CHECK "Bank0 kernels (1)"
-
-    ALIGN 256, FILLER_CHAR
-    PAGE_BOUNDARY_SET
-
-; -----------------------------------------------------------------------------
-; Desc:     Draw a 48 pixel wide sprite.
-; Inputs:   Y register (sprite height - 1)
-;           SpritePtrs (array of 6 words)
-; Outputs:
-; Notes:    P0 position=55; P1 position=63
-; -----------------------------------------------------------------------------
-Bank0_Draw48PixelSprite SUBROUTINE
-    DRAW_48_SPRITE SpritePtrs
-    lda #0
-    sta GRP0
-    sta GRP1
-    sta GRP0
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Draws 6 medium sprites in a row.
-; Inputs:   Y register (sprite height - 1)
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_Draw6Sprites SUBROUTINE
-    DRAW_6_SPRITES SpritePtrs
-    rts
-
-    PAGE_BOUNDARY_CHECK "Bank0 kernels (2)"
-
-; -----------------------------------------------------------------------------
-; Desc:     Performs game IO during blank.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank0_GameIO SUBROUTINE
-    jsr Bank0_ReadSwitches
-
-    ldx InputTimer
-    bne .DecTimer
-    jsr Bank0_ReadJoystick
-	;jsr Bank0_TestKeypad
-    rts
-
-.DecTimer
-    ; only update 1 in 64 frame ticks
-    lda #%00100000
-    bit FrameCtr
-    bne .Return
-    dex
-    stx InputTimer
-
-.Return
-    rts
-
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets the sprites to the options prompt message.
 ; Inputs:
@@ -1089,215 +948,14 @@ Bank0_SetupInteger SUBROUTINE
     sta SpritePtrs+11
     rts
 
-; -----------------------------------------------------------------------------
-; Desc:     Setup top row of chip sprites representing the pot.
-; Inputs:        
-; Ouputs:
-; -----------------------------------------------------------------------------
-#if 0
-    ds.b 7, <Bank0_ChipBlank
-
-    ; 0   1    2    3    4    5    6    7
-    ; 0,  100, 100, 100, 100, 100, 100, 100
-Bank0_Chips1000
-    ds.b 1, <Bank0_ChipBlank
-    ds.b 7, <Bank0_Chip6Sprite
-
-Bank0_Chips100
-Bank0_Chips10
-Bank0_Chips1
-
-Bank0_SetupChipsPot SUBROUTINE
-    sed
-
-    ; CurrBet
-    ; 00 09
-    ; 1000: 100
-    ;  100: 100
-    ;   10: 10, 50
-    
-    ; 
-    lda CurrBet+2
-    and #$07
-    tax
-    ldy #NUM_SPRITES-1
-.Loop1000
-    lda Bank0_Chips1000,x
-    dex
-    dey
-    bmi .Loop1000
-
-    ; initialize high byte
-    lda #>Bank0_ChipBlank
-    sta SpritePtrs+1
-    sta SpritePtrs+3
-    sta SpritePtrs+5
-    sta SpritePtrs+7
-    sta SpritePtrs+9
-    sta SpritePtrs+11
-
-    cld
-    rts
-#endif
-
-#if 0
-Bank0_SetupChipsPot SUBROUTINE
-    ; 12 34
-    sed
-
-    lda CurrBet+1
-    and #$f0
-    beq .Do100
-
-    ldx #NUM_SPRITES*2-1
-    ldy #<Bank0_ChipBlank
-.Loop1000
-    clc
-    sbc #$10
-    beq .Do100
-    sty SpritePtrs,x
-    dex
-    dex
-    bne .Loop1000
-    
-
-.Do100
-    lda CurrBet+1
-    and #$0f
-    beq .Do10
-
-.Do10
-    lda CurrBet+2
-    and #$f0
-    beq .Do1
-
-.Do1
-    lda CurrBet+2
-    and #$0f
-    beq .Continue
-
-.Continue
-
-    cld
-
-    ; initialize high byte
-    lda #>Bank0_Chips
-    sta SpritePtrs+1
-    sta SpritePtrs+3
-    sta SpritePtrs+5
-    sta SpritePtrs+7
-    sta SpritePtrs+9
-    sta SpritePtrs+11
-
-    ; bits:
-    ;    7   6   5   4   3   2   1   0  : bit
-    ;    -   -   6   5   4   3   2   1  : sprite position
-    ;    -   - 100  50  25  10   5   1  : chip denomination
-
-    rts
-#endif
-
-#if 1
-; original: working
-Bank0_SetupChipsPot SUBROUTINE
-    clc
-    sed
-
-    ldy #0                        ; sprite selector
-
-    lda CurrBet+1
-    cmp #0
-    beq .Next50
-    ldx #<Bank0_Chip5
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip5
-    stx SpritePtrs+1,y
-    iny
-    iny
-
-.Next50
-    lda CurrBet+2
-    cmp #$50
-    bcc .Next25
-    ldx #<Bank0_Chip4
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip4
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$50
-
-.Next25
-    cmp #$25
-    bcc .Next10
-    ldx #<Bank0_Chip3
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip3
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$25
-
-.Next10
-    cmp #$10
-    bcc .Next5
-    ldx #<Bank0_Chip2
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip2
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$10
-    cmp #$10
-    bcc .Next5
-    sbc #$10
-
-.Next5
-    cmp #$05
-    bcc .Next1
-    ldx #<Bank0_Chip1
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip1
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$05
-
-.Next1
-    cmp #1
-    bcc .Done
-    ldx #<Bank0_Chip0
-    stx SpritePtrs,y
-    ldx #>Bank0_Chip0
-    stx SpritePtrs+1,y
-    iny
-    iny
-
-.Done
-    lda #<Bank0_BlankSprite
-    ldx #>Bank0_BlankSprite
-
-.Blanks
-    cpy #NUM_SPRITES*2
-    bcs .Return
-    sta SpritePtrs,y
-    stx SpritePtrs+1,y
-    iny
-    iny
-    jmp .Blanks
-
-.Return
-    cld
-
-    rts
-#endif
+    INCLUDE_CHIP_SUBS 0
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Setup bottom chip menu row of sprites.
 ; Inputs:        
 ; Ouputs:
 ; -----------------------------------------------------------------------------
-Bank0_SetupPlayerChips SUBROUTINE
+Bank0_SetupMenuChips SUBROUTINE
     ; assign pointers to chip sprite graphics
     lda #>Bank0_Chips
     sta SpritePtrs+1
@@ -1344,6 +1002,138 @@ Bank0_SetupPlayerChips SUBROUTINE
 .Return
     rts
 
+    ; -------------------------------------------------------------------------
+    ORG BANK0_ORG + $700, FILLER_CHAR
+    RORG BANK0_RORG + $700
+
+    PAGE_BOUNDARY_SET
+    include "sys/bank0_palette.asm"
+    PAGE_BOUNDARY_CHECK "Bank0 palette crossed a page boundary"
+
+    ; -------------------------------------------------------------------------
+    ORG BANK0_ORG + $800, FILLER_CHAR
+    RORG BANK0_RORG + $800
+
+Bank0_DrawMessageBar SUBROUTINE
+    DRAW_48_COLOR_SPRITE SpritePtrs, Bank0_MessagePalette
+    lda #0
+    sta GRP0
+    sta GRP1
+    sta GRP0
+    rts
+
+Bank0_Draw48PixelSprite SUBROUTINE
+    DRAW_48_SPRITE SpritePtrs
+    lda #0
+    sta GRP0
+    sta GRP1
+    sta GRP0
+    rts
+
+Bank0_GameIO SUBROUTINE
+    jsr Bank0_ReadSwitches
+
+    ldx InputTimer
+    bne .DecTimer
+    jsr Bank0_ReadJoystick
+	;jsr Bank0_TestKeypad
+    rts
+
+.DecTimer
+    ; only update 1 in 64 frame ticks
+    lda #%00100000
+    bit FrameCtr
+    bne .Return
+    dex
+    stx InputTimer
+
+.Return
+    rts
+
+Bank0_InitGlobals SUBROUTINE
+    lda #GS_START_STATE
+    sta GameState
+    lda #%00001111
+    sta SWACNT
+    lda SWCHA
+    sta JoySWCHA
+    lda SWCHB
+    sta JoySWCHB
+    lda INPT4
+    sta JoyINPT4
+    ldx #1
+    stx RandNum
+
+    IF TEST_RAND_ON == 2
+    ldx #0
+    stx RandAlt
+    ELSE
+    stx RandAlt
+    ENDIF
+
+    lda #NUM_DECKS-1 & FLAGS_LATE_SURRENDER & FLAGS_HIT_SOFT17
+    sta GameOpts
+
+    ; begin counter after 2nd highlight, because it flashes on loading
+    ldx #TITLE_COPY_HEIGHT
+    stx FrameCtr
+    rts
+
+    ; -------------------------------------------------------------------------
+    ;ORG BANK0_ORG + $900, FILLER_CHAR
+    ;RORG BANK0_RORG + $900
+
+    include "../atarilib/lib/draw.asm"
+
+Bank0_Draw6Sprites SUBROUTINE
+    DRAW_6_SPRITES SpritePtrs
+    rts
+
+Bank0_Draw6ColorSprites SUBROUTINE
+    DRAW_6_COLOR_SPRITES SpritePtrs, TempPtr
+    rts
+
+Bank0_DrawTitleGraphic SUBROUTINE
+    ldy #TITLE_LOGO_HEIGHT-1
+    DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
+    rts
+
+    ; -------------------------------------------------------------------------
+    ORG BANK0_ORG + $a00, FILLER_CHAR
+    RORG BANK0_RORG + $a00
+
+; -----------------------------------------------------------------------------
+; Desc:     Sets the sprite pointers to blank sprites.
+; Inputs:
+; Ouputs:
+; -----------------------------------------------------------------------------
+Bank0_ClearSprites SUBROUTINE
+    ; assign to blank sprites
+    lda #<Bank0_BlankSprite
+    ldx #>Bank0_BlankSprite
+    ldy #NUM_VISIBLE_CARDS*2-2
+.Loop
+    sta SpritePtrs,y
+    stx SpritePtrs+1,y
+    dey
+    dey
+    bpl .Loop
+    rts
+
+; -----------------------------------------------------------------------------
+; Desc:     Sets sprite spacing gaps.
+; Inputs:   Y register (sprite index)
+; Ouputs:
+; -----------------------------------------------------------------------------
+Bank0_InitSpriteSpacing SUBROUTINE
+    lda Bank0_SpriteSize,y
+    sta NUSIZ0
+    sta NUSIZ1
+    lda Bank0_SpriteDelay,y
+    sta VDELP0
+    sta VDELP1
+    rts
+
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets the sprite pointers to the same sprite character given by the
 ;           16 bit address.
@@ -1359,11 +1149,6 @@ Bank0_SetSpriteOptions SUBROUTINE
     sta VDELP1
     rts
 
-; -----------------------------------------------------------------------------
-; Desc:     Horizontally positions two sprites at close distance.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
 Bank0_ClearGraphicsOpts SUBROUTINE
     lda #0
     sta VDELP0
@@ -1371,30 +1156,6 @@ Bank0_ClearGraphicsOpts SUBROUTINE
     sta GRP0
     sta GRP1
     rts
-
-; indicates which are set to blank sprites
-; Bit: 0-5  sprites 1 through 6
-; Bit: 6-7  unused
-Bank0_ResultMessageBlanks
-    dc.b 0
-    dc.b 0                          ; FLAGS_LOST
-    dc.b %00100001                  ; FLAGS_BUST
-    dc.b %00100000                  ; FLAGS_21
-    dc.b %00100001                  ; FLAGS_PUSH
-    dc.b %00100000                  ; FLAGS_WIN
-    dc.b 0                          ; FLAGS_BLACKJACK
-
-; indicates which are set to blank sprites
-; Bit: 0-5  sprites 1 through 6
-; Bit: 6-7  unused
-Bank0_PromptMessageBlanks
-    dc.b 0
-    dc.b %00100001
-    dc.b 0
-    dc.b 0
-    dc.b 0
-    dc.b %00100001
-    dc.b 0
 
 ; Indexed by game state values.
 ; bit 7:        show betting row
@@ -1439,6 +1200,40 @@ Bank0_GameStateFlags
     dc.b %00110000          ; GS_BROKE_BANK1
     dc.b %00110000          ; GS_BROKE_BANK2
 
+    INCLUDE_SPRITE_POSITIONING 0
+    INCLUDE_SPRITE_OPTIONS 0
+    INCLUDE_SPRITE_COLORS 0
+
+    ; -------------------------------------------------------------------------
+    ORG BANK0_ORG + $b00, FILLER_CHAR
+    RORG BANK0_RORG + $b00
+
+    include "bank0/gen/title-gfx-48.sp"
+
+; indicates which are set to blank sprites
+; Bit: 0-5  sprites 1 through 6
+; Bit: 6-7  unused
+Bank0_ResultMessageBlanks
+    dc.b 0
+    dc.b 0                          ; FLAGS_LOST
+    dc.b %00100001                  ; FLAGS_BUST
+    dc.b %00100000                  ; FLAGS_21
+    dc.b %00100001                  ; FLAGS_PUSH
+    dc.b %00100000                  ; FLAGS_WIN
+    dc.b 0                          ; FLAGS_BLACKJACK
+
+; indicates which are set to blank sprites
+; Bit: 0-5  sprites 1 through 6
+; Bit: 6-7  unused
+Bank0_PromptMessageBlanks
+    dc.b 0
+    dc.b %00100001
+    dc.b 0
+    dc.b 0
+    dc.b 0
+    dc.b %00100001
+    dc.b 0
+
 Bank0_PlayMenuSprite
     dc.b <HelpHit           ; DASH_HIT_IDX
     dc.b <HelpDoubledown    ; DASH_DOUBLEDOWN_IDX
@@ -1452,9 +1247,9 @@ Bank0_CancelMenuSprite
     dc.b <HelpInsurance     ; DASH_INSURANCE_IDX
     dc.b <HelpSplit         ; DASH_SPLIT_IDX
 
-; -----------------------------------------------------------------------------
+    INCLUDE_CHIP_DATA 0
+
 ; Shared procedures
-; -----------------------------------------------------------------------------
 PROC_BANK0_LANDINGINIT		= 0
 PROC_BANK0_OVERSCAN			= 1
 PROC_ANIMATIONCLEAR         = 2
@@ -1472,40 +1267,11 @@ Bank0_ProcTableHi
     dc.b >AnimationClear
     dc.b >SoundClear
 
-    include "sys/bank0_palette.asm"
+Bank0_KeyBits
+    dc.b %00001110, %00001101, %00001011, %00000111
+Bank0_KeyCode
+    dc.b 0, 3, 6, 9
 
-    ALIGN 256, FILLER_CHAR
-
-; -----------------------------------------------------------------------------
-; Desc:     Draw multi-color graphics for the title scren.
-; Inputs:   
-; Ouputs:
-; -----------------------------------------------------------------------------
-    PAGE_BOUNDARY_SET
-    include "../atarilib/lib/draw.asm"
-
-Bank0_DrawTitleGraphic SUBROUTINE
-    ldy #TITLE_LOGO_HEIGHT-1
-    DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
-    rts
-
-    PAGE_BOUNDARY_CHECK "Draw kernels"
-
-    ALIGN 256, FILLER_CHAR
-    PAGE_BOUNDARY_SET
-    include "bank0/gen/title-gfx-48.sp"
-    PAGE_BOUNDARY_CHECK "TItle gfx"
-
-    INCLUDE_MULTIPLY_TABLE 0, 4, 10
-    INCLUDE_MULTIPLY_TABLE 0, 5, 4
-    INCLUDE_MULTIPLY_TABLE 0, 6, 20
-
-    ; Bank tailored data from lib\macros.asm
-    INCLUDE_SPRITE_OPTIONS 0
-    INCLUDE_SPRITE_COLORS 0
-
-    ; -------------------------------------------------------------------------
-    ; Graphics
     ; -------------------------------------------------------------------------
     ORG BANK0_ORG + $c00, FILLER_CHAR
     RORG BANK0_RORG + $c00
@@ -1542,6 +1308,14 @@ Bank0_IntGfxHi
 	dc.b >Bank0_Digit0, >Bank0_Digit1, >Bank0_Digit2, >Bank0_Digit3
 	dc.b >Bank0_Digit4, >Bank0_Digit5, >Bank0_Digit6, >Bank0_Digit7
 	dc.b >Bank0_Digit8, >Bank0_Digit9
+
+    INCLUDE_MULTIPLY_TABLE 0, 4, 10
+    INCLUDE_MULTIPLY_TABLE 0, 5, 4
+    INCLUDE_MULTIPLY_TABLE 0, 6, 20
+    INCLUDE_MULTIPLY_TABLE 0, 10, 5
+
+    INCLUDE_POSITIONING_SUBS 0
+    INCLUDE_MENU_SUBS 0
 
     ; ------------------------------------------------------------------------
     ORG BANK0_ORG + $ff6-BS_SIZEOF

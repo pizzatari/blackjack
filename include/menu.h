@@ -43,10 +43,10 @@
 ; Inputs:
 ; Outputs:  A register (selected menu index)
 ; -----------------------------------------------------------------------------
-Bank{1}_GetBetMenu SUBROUTINE
-    lda CurrState
-    and #CURR_BET_MENU_MASK
-    rts
+Bank{1}_GetBetMenu SUBROUTINE   ; 6 (6)
+    lda CurrState               ; 3 (9)
+    and #CURR_BET_MENU_MASK     ; 2 (11)
+    rts                         ; 6 (17)
 
 ; -----------------------------------------------------------------------------
 ; Desc:     Sets the currently selected betting menu item.

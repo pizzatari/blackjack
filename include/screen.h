@@ -148,3 +148,136 @@ Bank{1}_HandNusiz1
 Bank{1}_HandNusiz0
     dc.b 0, 0, 0, 2, 2, 6, 6
     ENDM
+
+; -----------------------------------------------------------------------------
+; Desc:     Chip rendering setup subroutine.
+; Params:   bank number
+; Inputs:   TempInt (3 byte integer)
+; Outputs:
+; -----------------------------------------------------------------------------
+	MAC INCLUDE_CHIP_SUBS
+
+Bank{1}_SetupChipSprites SUBROUTINE ; 6 (6)
+    sed                             ; 2 (8)
+    ldx #5*2                        ; 2 (21)    ones chip position in SpritePtrs
+    ldy #6                          ; 2 (10)
+
+    lda TempInt                     ; 3 (13)
+    cmp #$10                        ; 2 (15)    if chips >= 100,000
+    bcc .Next1                      ; 2 (17)
+    ldy #0                          ; 2 (19)    first chip position in Bank{1}_ChipScale*
+    jmp .Assign                     ; 3 (24)
+
+.Next1
+    cmp #$01                        ; 2 (26)    if chips >= 10,000
+    bcc .Next2                      ; 2 (28)
+    ldy #1                          ; 2 (30)
+    ldx #4*2                        ; 2 (32)
+    jmp .Assign                     ; 3 (35)
+
+.Next2
+    lda TempInt+1                   ; 3 (38)
+    cmp #$10                        ; 2 (40)    if chips >= 1,000
+    bcc .Next3                      ; 2 (42)
+    ldy #2                          ; 2 (44)
+    ldx #3*2                        ; 2 (46)
+    jmp .Assign                     ; 3 (49)
+
+.Next3
+    cmp #$01                        ; 2 (51)    if chips >= 100
+    bcc .Next4                      ; 2 (53)
+    ldy #3                          ; 2 (55)
+    ldx #2*2                        ; 2 (57)
+    jmp .Assign                     ; 3 (60)
+
+.Next4
+    lda TempInt+2                   ; 3 (63)
+    cmp #$10                        ; 2 (65)    if chips >= 10
+    bcc .Next5                      ; 2 (67)
+    ldy #4                          ; 2 (69)
+    ldx #1*2                        ; 2 (71)
+    jmp .Assign                     ; 3 (74)
+
+.Next5
+    cmp #$01                        ; 2 (76)    if chips >= 1
+    bcc .Assign                     ; 2 (78)
+    ldy #5                          ; 2 (80)
+    ldx #0*2                        ; 2 (82)
+
+.Assign
+    cld                             ; 2 (87)
+
+    ; populate SpritePtrs
+    lda Bank{1}_ChipScaleLo,y       ; 4 (91)
+    sta SpritePtrs                  ; 4 (95)
+    lda Bank{1}_ChipScaleHi,y       ; 4 (99)
+    sta SpritePtrs+1                ; 4 (103)
+
+    lda Bank{1}_ChipScaleLo+1,y     ; 4 (107)
+    sta SpritePtrs+2                ; 4 (111)
+    lda Bank{1}_ChipScaleHi+1,y     ; 4 (115)
+    sta SpritePtrs+3                ; 4 (119)
+
+    lda Bank{1}_ChipScaleLo+2,y     ; 4 (123)
+    sta SpritePtrs+4                ; 4 (127)
+    lda Bank{1}_ChipScaleHi+2,y     ; 4 (131)
+    sta SpritePtrs+5                ; 4 (135)
+
+    lda Bank{1}_ChipScaleLo+3,y     ; 4 (139)
+    sta SpritePtrs+6                ; 4 (143)
+    lda Bank{1}_ChipScaleHi+3,y     ; 4 (147)
+    sta SpritePtrs+7                ; 4 (151)
+
+    lda Bank{1}_ChipScaleLo+4,y     ; 4 (155)
+    sta SpritePtrs+8                ; 4 (159)
+    lda Bank{1}_ChipScaleHi+4,y     ; 4 (163)
+    sta SpritePtrs+9                ; 4 (167)
+
+    lda Bank{1}_ChipScaleLo+5,y     ; 4 (171)
+    sta SpritePtrs+10               ; 4 (175)
+    lda Bank{1}_ChipScaleHi+5,y     ; 4 (179)
+    sta SpritePtrs+11               ; 4 (183)
+
+    ; adjust the scale of the ones chip graphic
+    lda TempInt+2                   ; 3 (186)
+    beq .Blank                      ; 2 (188)
+    cmp #$10                        ; 2 (190)
+    bcs .Return                     ; 2 (192)
+    lsr                             ; 2 (194)
+    tay                             ; 2 (196)
+    lda Bank{1}_Mult10,y            ; 4 (200)     chip sprite height = 10
+    clc                             ; 2 (202)
+    adc #<Bank{1}_Chip0             ; 2 (204)
+    sta SpritePtrs,x                ; 4 (208)
+    rts                             ; 6 (214)
+
+.Blank
+    ; show blank if lowest 2 digits == 00
+    lda #<Bank{1}_BlankSprite       ; 2 (195)
+    sta SpritePtrs,x                ; 4 (199)
+    lda #>Bank{1}_BlankSprite       ; 2 (201)
+    sta SpritePtrs+1,x              ; 4 (205)
+
+.Return
+    rts                             ; 6 (212)
+
+	ENDM
+
+; -----------------------------------------------------------------------------
+; Desc:     Data for the Bank*_SetupChipsPot routines.
+; Inputs:   bank number   
+; Outputs:
+; -----------------------------------------------------------------------------
+	MAC INCLUDE_CHIP_DATA
+Bank{1}_ChipScaleLo
+    dc.b <Bank{1}_Chip5, <Bank{1}_Chip5, <Bank{1}_Chip5
+    dc.b <Bank{1}_Chip5, <Bank{1}_Chip5, <Bank{1}_Chip4
+    dc.b <Bank{1}_BlankSprite, <Bank{1}_BlankSprite, <Bank{1}_BlankSprite
+    dc.b <Bank{1}_BlankSprite, <Bank{1}_BlankSprite, <Bank{1}_BlankSprite
+Bank{1}_ChipScaleHi
+    dc.b >Bank{1}_Chip5, >Bank{1}_Chip5, >Bank{1}_Chip5
+    dc.b >Bank{1}_Chip5, >Bank{1}_Chip5, >Bank{1}_Chip4
+    dc.b >Bank{1}_BlankSprite, >Bank{1}_BlankSprite, >Bank{1}_BlankSprite
+    dc.b >Bank{1}_BlankSprite, >Bank{1}_BlankSprite, >Bank{1}_BlankSprite
+	ENDM
+

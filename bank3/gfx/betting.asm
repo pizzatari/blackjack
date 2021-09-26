@@ -12,6 +12,7 @@ Bank3_Chip0
     dc.b %00000000
     dc.b %00000000
     dc.b %00000000
+CHIP_HEIGHT = . - Bank3_Chip0
 Bank3_Chip1
     dc.b %00000000
     dc.b %01111110

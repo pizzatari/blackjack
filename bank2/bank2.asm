@@ -93,6 +93,7 @@ Bank2_FrameStart SUBROUTINE
 
     ; dispatch task or game handler
     jsr QueueGetTail
+    txa
     beq .DispatchGame
 
     ; task handler ------------------------------------------------------------
@@ -516,7 +517,7 @@ Bank2_DealCard SUBROUTINE
     lda DealDepth
     cmp Bank2_DeckPenetration,y
     bcc .Return
-    lda #TSK_SHUFFLE
+    ldx #TSK_SHUFFLE
     jsr QueueAdd
 
 .Return
@@ -1177,7 +1178,7 @@ Bank2_AnimateCard SUBROUTINE
     sta Bank2_AddID
     CALL_BANK PROC_ANIMATIONADD, 3, 2
 
-    lda #TSK_FLIP_CARD
+    ldx #TSK_FLIP_CARD
     jsr QueueAdd
 
     rts
@@ -1236,8 +1237,9 @@ DoFlipCard SUBROUTINE
     bpl .Loop
 
     ; animation done; disable task
-    lda #TSK_FLIP_CARD
-    jsr QueueRemove
+    ldx #TSK_FLIP_CARD
+    ldy #TSK_NONE
+    jsr QueueReplace
     rts
 
     ; advance animation frame
@@ -1256,8 +1258,8 @@ DoFlipCard SUBROUTINE
 ; Outputs:
 ; -----------------------------------------------------------------------------
 DoShuffle SUBROUTINE
-    lda #TSK_NONE
-    ldy #TSK_SHUFFLE
+    ldx #TSK_SHUFFLE
+    ldy #TSK_NONE
     jsr QueueReplace
 
     lda #0
@@ -1273,7 +1275,7 @@ DoShuffle SUBROUTINE
     lda FrameCtr
     sta RandNum
 
-    lda #TSK_DEALER_DISCARD
+    ldx #TSK_DEALER_DISCARD
     jsr QueueAdd
 
     lda #SOUND_ID_SHUFFLE0
@@ -1289,8 +1291,8 @@ DoShuffle SUBROUTINE
 ; Outputs:
 ; -----------------------------------------------------------------------------
 DoDealerDiscard SUBROUTINE
-    lda #TSK_NONE
-    ldy #TSK_DEALER_DISCARD
+    ldx #TSK_DEALER_DISCARD
+    ldy #TSK_NONE
     jsr QueueReplace
 
     ; add any currently active cards to the discard pile
@@ -1310,8 +1312,8 @@ DoDealerDiscard SUBROUTINE
 
 ; Same as for DoDealerDiscard() but for player's hand 1
 DoPlayer1Discard SUBROUTINE
-    lda #TSK_NONE
-    ldy #TSK_PLAYER1_DISCARD
+    ldx #TSK_PLAYER1_DISCARD
+    ldy #TSK_NONE
     jsr QueueReplace
 
     ldx #PLAYER1_IDX
@@ -1343,8 +1345,8 @@ DoPlayer1Discard SUBROUTINE
 
 ; Same as for DoDealerDiscard() but for player's hand 2
 DoPlayer2Discard SUBROUTINE
-    lda #TSK_NONE
-    ldy #TSK_PLAYER2_DISCARD
+    ldx #TSK_PLAYER2_DISCARD
+    ldy #TSK_NONE
     jsr QueueReplace
 
     ldx #PLAYER2_IDX
@@ -1406,8 +1408,8 @@ DoBlackJackAnim SUBROUTINE
     bpl .Loop
 
     ; animation done; disable task
-    lda #TSK_NONE
-    ldy #TSK_BLACKJACK
+    ldx #TSK_BLACKJACK
+    ldy #TSK_NONE
     jsr QueueReplace
     rts
 
@@ -1421,8 +1423,8 @@ DoBlackJackAnim SUBROUTINE
     rts
 
 DoPopupOpen SUBROUTINE
-    lda #TSK_NONE
-    ldy #TSK_POPUP_OPEN
+    ldx #TSK_POPUP_OPEN
+    ldy #TSK_NONE
     jsr QueueReplace
     rts
 
@@ -1487,7 +1489,7 @@ WaitPlayerBet SUBROUTINE
     bit JoyRelease
     beq .CheckKeypad
     jsr Bank2_DeckChange
-    lda #TSK_SHUFFLE
+    ldx #TSK_SHUFFLE
     jsr QueueAdd
     jmp .CheckKeypad
     lda #SOUND_ID_ERROR
@@ -1510,7 +1512,6 @@ WaitPlayerBet SUBROUTINE
     jsr Bank2_GetBetMenu
     sta BetSelect
 
-Debug2
     ; check for joystick input
 .CheckLeft
     lda #JOY0_LEFT
@@ -1702,8 +1703,8 @@ ActionOpenDeal5 SUBROUTINE
     lda #GS_DEALER_SET_FLAGS
     sta GameState
 
-    lda #TSK_POPUP_OPEN
-    ldx #ARG_POPUP_OPEN
+    ldx #TSK_POPUP_OPEN
+    lda #ARG_POPUP_OPEN
     jsr QueueAdd
     rts
 
@@ -2339,7 +2340,7 @@ WaitPlayerSplit SUBROUTINE
 
 #if 0
     ; deal a card
-    lda #TSK_DEAL_CARD
+    ldx #TSK_DEAL_CARD
     jsr QueueAdd
 #endif
     jmp .Return
@@ -2740,7 +2741,7 @@ WaitIntermission SUBROUTINE
     jmp .Return
 
 .NewGame
-    lda #INPUT_DELAY
+    lda #INPUT_DELAY_BETTING
     sta InputTimer
 	jsr Bank2_ClearEvents
 

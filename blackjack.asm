@@ -1,7 +1,7 @@
 ; -----------------------------------------------------------------------------
 ; Author:   Edward Gilmour
 ; Date:     July 2018
-; Version:  0.94 (beta)
+; Version:  0.95 (beta)
 ; Game:     Black Jack Theta VIII for the Atari 2600
 ;
 ; 4 banks (4 KB each):
@@ -56,9 +56,6 @@
 
 VIDEO_MODE                  = VIDEO_NTSC
 NO_ILLEGAL_OPCODES          = 1
-POSITION_OBJECT_VERS        = 1
-BANKSWITCH_VERS             = 1
-;HORIZ_POSITION_EXTRAS       = 0
 
     include "sys/video.h"
     include "atarilib.h"
@@ -94,9 +91,6 @@ PIP_COLORS                  = 0
 ;   1 = non-random numbers
 ;   2 = non-random cards
 TEST_RAND_ON                = 0
-TEST_TIME_ON                = 0
-TEST_TIMING_ON              = 0
-TEST_STACK_DEBUG            = 0
 
 FILLER_CHAR                 = $4f; $00
 
@@ -247,10 +241,10 @@ GS_DEALER_HIT               = 28    ; positioned after player game states.
 GS_DEALER_POST_HIT          = 29    ;
 GS_DEALER_HAND_OVER         = 30    ;-----
 GS_GAME_OVER                = 31
-GS_INTERMISSION             = 32
-GS_BROKE_BANK1              = 33
-GS_BROKE_BANK2              = 34
-GS_MAX                      = GS_BROKE_BANK2
+GS_GAME_OVER_WAIT           = 32
+GS_BROKE_PLAYER             = 33
+GS_BROKE_BANK               = 34
+GS_MAX                      = GS_BROKE_BANK
 GS_START_STATE              = GS_TITLE_SCREEN
 GameState                   ds.b 1
 

@@ -353,7 +353,7 @@ Bank3_PlayKernel SUBROUTINE
     sta GRP1
 
     ; saving 2 bytes of stack by jumping
-    JUMP_BANK PROC_BANK3_OVERSCAN, 2, 3
+    JUMP_BANK Bank2_Overscan
 
 ; -----------------------------------------------------------------------------
 ; SUBROUTINES
@@ -837,103 +837,6 @@ Bank3_SetupStatusBar SUBROUTINE
     sta SpritePtrs+9
     sta SpritePtrs+11
 .Return
-    rts
-
-; -----------------------------------------------------------------------------
-; Desc:     Setup top row of chip sprites representing the pot.
-; Inputs:
-; Ouputs:
-; -----------------------------------------------------------------------------
-Bank3_SetupChipsPot SUBROUTINE
-    clc
-    sed
-
-    ldy #0                        ; sprite selector
-
-    lda CurrBet+1
-    cmp #0
-    beq .Next50
-    ldx #<Bank3_Chip5
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip5
-    stx SpritePtrs+1,y
-    iny
-    iny
-
-.Next50
-    lda CurrBet+2
-    cmp #$50
-    bcc .Next25
-    ldx #<Bank3_Chip4
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip4
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$50
-
-.Next25
-    cmp #$25
-    bcc .Next10
-    ldx #<Bank3_Chip3
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip3
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$25
-
-.Next10
-    cmp #$10
-    bcc .Next5
-    ldx #<Bank3_Chip2
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip2
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$10
-    cmp #$10
-    bcc .Next5
-    sbc #$10
-
-.Next5
-    cmp #$05
-    bcc .Next1
-    ldx #<Bank3_Chip1
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip1
-    stx SpritePtrs+1,y
-    iny
-    iny
-    sbc #$05
-
-.Next1
-    cmp #1
-    bcc .Done
-    ldx #<Bank3_Chip0
-    stx SpritePtrs,y
-    ldx #>Bank3_Chip0
-    stx SpritePtrs+1,y
-    iny
-    iny
-
-.Done
-    lda #<Bank3_BlankSprite
-    ldx #>Bank3_BlankSprite
-
-.Blanks
-    cpy #NUM_SPRITES*2
-    bcs .Return
-    sta SpritePtrs,y
-    stx SpritePtrs+1,y
-    iny
-    iny
-    jmp .Blanks
-
-.Return
-    cld
-
     rts
 
 ; -----------------------------------------------------------------------------

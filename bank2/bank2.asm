@@ -25,6 +25,8 @@ BetSelect       = TempVars+2
 PayoutCtr       = TempVars+2
 TempChips       = TempVars+3
 
+TempBank        = TempVars+4
+
 Bank2_Reset
     ; switch to bank 0 if we start here
     bit BANK0_HOTSPOT
@@ -88,7 +90,8 @@ Bank2_FrameStart SUBROUTINE
 .Found
     lda Bank2_GameStateSound+1,x
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 .Done
 
     ; dispatch task or game handler
@@ -152,11 +155,14 @@ Bank2_FrameStart SUBROUTINE
     inx
     jmp .SearchKernel
 .CallKernel
-    lda Bank2_KernelProc,x
-    ldy Bank2_KernelBank,x
-    tax
+    lda Bank2_KernelBank,x
+    sta TempBank
 
     TIMER_WAIT
+
+    lda Bank2_KernelLo,x
+    ldy Bank2_KernelHi,x
+    ldx TempBank
     jmp Bank2_JumpBank
 
     ; -------------------------------------------------------------------------
@@ -170,8 +176,10 @@ Bank2_Overscan
     lda #TIME_OVERSCAN
     sta TIM64T
 
-    CALL_BANK PROC_BANK2_GAMEIO, 0, 2
-    CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
+    ;CALL_BANK PROC_BANK2_GAMEIO, 0, 2
+    ;CALL_BANK PROC_SOUNDQUEUETICK, 1, 2
+    CALL_BANK Bank0_GameIO
+    CALL_BANK SoundTick
 
     ; test keypad
 
@@ -1155,7 +1163,8 @@ Bank2_DashboardNavigate SUBROUTINE
 
     lda #SOUND_ID_NAVIGATE
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
 .Return
     rts
@@ -1176,7 +1185,8 @@ Bank2_AnimateCard SUBROUTINE
     sta Bank2_AddPos                    ; position (row, column)
     lda #ANIM_ID_FLIP_CARD
     sta Bank2_AddID
-    CALL_BANK PROC_ANIMATIONADD, 3, 2
+    ;CALL_BANK PROC_ANIMATIONADD, 3, 2
+    CALL_BANK AnimationAdd
 
     ldx #TSK_FLIP_CARD
     jsr QueueAdd
@@ -1247,7 +1257,8 @@ DoFlipCard SUBROUTINE
     lda #%00000111
     bit FrameCtr
     bne .SkipAnim
-    CALL_BANK PROC_ANIMATIONTICK, 3, 2
+    ;CALL_BANK PROC_ANIMATIONTICK, 3, 2
+    CALL_BANK AnimationTick
 .SkipAnim
     rts
 
@@ -1282,7 +1293,8 @@ DoShuffle SUBROUTINE
     sta Arg1
     lda #SOUND_ID_SHUFFLE1
     sta Arg2
-    CALL_BANK PROC_SOUNDQUEUEPLAY2, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY2, 1, 2
+    CALL_BANK SoundPlay2
     rts
 
 ; -----------------------------------------------------------------------------
@@ -1418,7 +1430,8 @@ DoBlackJackAnim SUBROUTINE
     lda #%00000111
     bit FrameCtr
     bne .SkipAnim
-    CALL_BANK PROC_ANIMATIONTICK, 3, 2
+    ;CALL_BANK PROC_ANIMATIONTICK, 3, 2
+    CALL_BANK AnimationTick
 .SkipAnim
     rts
 
@@ -1494,7 +1507,8 @@ WaitPlayerBet SUBROUTINE
     jmp .CheckKeypad
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
 .CheckKeypad
 #if 0
@@ -1561,7 +1575,8 @@ WaitPlayerBet SUBROUTINE
 
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     jmp .Return
 
 .FirstDeal
@@ -1577,7 +1592,8 @@ WaitPlayerBet SUBROUTINE
 
     lda #SOUND_ID_STAND
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
 .Return
     cld
@@ -1903,7 +1919,8 @@ WaitPlayerTurn SUBROUTINE
 
     lda #SOUND_ID_HIT
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
     ; check if dealer has blackjack before proceeding
     lda #FLAGS_BLACKJACK
@@ -1929,7 +1946,8 @@ WaitPlayerTurn SUBROUTINE
 
     lda #SOUND_ID_STAND
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     
     jmp .Return
 
@@ -1951,7 +1969,8 @@ WaitPlayerStay SUBROUTINE
 
     lda #SOUND_ID_STAND
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     
     jmp .Return
 
@@ -2091,7 +2110,8 @@ WaitPlayerSurrender SUBROUTINE
 
     lda #SOUND_ID_SURRENDER
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
     ; player surrendered; hand is over
     ldx CurrPlayer
@@ -2129,7 +2149,8 @@ WaitPlayerSurrender SUBROUTINE
 .NotAllowed
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     jmp .Return
 
 .CheckNavigation
@@ -2153,7 +2174,8 @@ WaitPlayerDoubleDown SUBROUTINE
     cld
     lda #SOUND_ID_DOUBLEDOWN
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
     jsr Bank2_ApplyCurrBet
     bmi .NotAllowed
@@ -2183,7 +2205,8 @@ WaitPlayerDoubleDown SUBROUTINE
     cld
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     jmp .Return
 
 .CheckNavigation
@@ -2217,7 +2240,8 @@ WaitPlayerInsurance SUBROUTINE
     cld
     lda #SOUND_ID_INSURANCE
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
     ldx CurrPlayer
 
@@ -2243,7 +2267,8 @@ WaitPlayerInsurance SUBROUTINE
     cld
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     jmp .Return
 
 .CheckNavigation
@@ -2267,7 +2292,8 @@ WaitPlayerSplit SUBROUTINE
     cld
     lda #SOUND_ID_SPLIT
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
     ; player has enough chips
     jsr Bank2_ApplyCurrBet
@@ -2277,7 +2303,8 @@ WaitPlayerSplit SUBROUTINE
     cld
     lda #SOUND_ID_ERROR
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     jmp .Return
 
 .BetOkay
@@ -2386,7 +2413,8 @@ ActionPlayerHandOver SUBROUTINE
 
     lda #SOUND_ID_LOST
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
 .NextHand
     ; play moves to the main hand
@@ -2680,8 +2708,9 @@ ActionGameOver SUBROUTINE
     sta Arg1
     lda #SOUND_ID_WIN1
     sta Arg2
-    CALL_BANK PROC_SOUNDQUEUEPLAY2, 1, 2
-    jmp .Return
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY2, 1, 2
+    CALL_BANK SoundPlay2
+    jmp .Continue
 
 .CheckPush
     lda #FLAGS_PUSH
@@ -2689,27 +2718,38 @@ ActionGameOver SUBROUTINE
     beq .CheckLoss
     lda #SOUND_ID_PUSH
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
     
 .CheckLoss
     lda #FLAGS_LOST | FLAGS_BUST
     and PlayerFlags
-    beq .Return
+    beq .Continue
 
     lda #SOUND_ID_LOST
     sta Arg1
-    CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    ;CALL_BANK PROC_SOUNDQUEUEPLAY, 1, 2
+    CALL_BANK SoundPlay
 
 .PlaySound
     
-.Return
+.Continue
     lda #INPUT_DELAY
     sta InputTimer
-    lda #GS_INTERMISSION
+    lda #GS_GAME_OVER_WAIT
     sta GameState
+
+    lda PlayerChips
+    ora PlayerChips+1
+    ora PlayerChips+1
+    bne .Return
+
+    ;lda #GS_BROKE_PLAYER
+    ;sta GameState
+.Return
     rts
 
-WaitIntermission SUBROUTINE
+WaitGameOver SUBROUTINE
     lda #JOY_REL_FIRE
     bit JoyRelease
     bne .NewGame
@@ -2760,8 +2800,10 @@ WaitIntermission SUBROUTINE
 .Return
     rts
 
-WaitBrokeBank1 SUBROUTINE
-WaitBrokeBank2 SUBROUTINE
+WaitBrokePlayer SUBROUTINE
+    rts
+
+WaitBrokeBank SUBROUTINE
     rts
 
 ; -----------------------------------------------------------------------------
@@ -3008,9 +3050,9 @@ Bank2_GameStateFlags
     dc.b %00110000      ; GS_DEALER_POST_HIT
     dc.b %00110000      ; GS_DEALER_HAND_OVER
     dc.b %00110000      ; GS_GAME_OVER
-    dc.b %00110000      ; GS_INTERMISSION
-    dc.b %00110000      ; GS_BROKE_BANK1
-    dc.b %00110000      ; GS_BROKE_BANK2
+    dc.b %00110000      ; GS_GAME_OVER_WAIT
+    dc.b %00110000      ; GS_BROKE_PLAYER
+    dc.b %00110000      ; GS_BROKE_BANK
 
 ; Game state handlers implement the core game mechanics.
 ;   Action handlers execute for one frame.
@@ -3057,9 +3099,9 @@ Bank2_GameStateHandlers
     dc.w ActionDealerHandOver   ; GS_DEALER_HAND_OVER
     ; game over
     dc.w ActionGameOver         ; GS_GAME_OVER
-    dc.w WaitIntermission       ; GS_INTERMISSION
-    dc.w WaitBrokeBank1         ; GS_BROKE_BANK1
-    dc.w WaitBrokeBank2         ; GS_BROKE_BANK2
+    dc.w WaitGameOver           ; GS_GAME_OVER_WAIT
+    dc.w WaitBrokePlayer        ; GS_BROKE_PLAYER
+    dc.w WaitBrokeBank          ; GS_BROKE_BANK
 
 ; Tasks are prioritized and momentarily interrupt the game play
 Bank2_TaskHandlers
@@ -3127,16 +3169,25 @@ Bank2_ProcTableHi
 ; GameState -> { ProcTable index, bank number }
 Bank2_KernelKey
     dc.b GS_NEW_GAME, GS_PLAYER_BET, GS_PLAYER_BET_DOWN, GS_PLAYER_BET_UP
-    dc.b GS_BROKE_BANK1, GS_BROKE_BANK2
+    dc.b GS_BROKE_PLAYER, GS_BROKE_BANK
     dc.b 0
+Bank2_KernelLo
+    ds.b 4, <Bank0_BettingKernel
+    ds.b 2, <Bank0_BettingKernel
+    ds.b 1, <Bank3_PlayKernel
+Bank2_KernelHi
+    ds.b 4, >Bank0_BettingKernel
+    ds.b 2, >Bank0_BettingKernel
+    ds.b 1, >Bank3_PlayKernel
+Bank2_KernelBank
+    ds.b 4, 0
+    ds.b 2, 0
+    ds.b 1, 3
+
 Bank2_KernelProc
     ds.b 4, PROC_BANK2_BETTINGKERNEL
     ds.b 2, PROC_BANK2_DEPARTKERNEL
     ds.b 1, PROC_BANK2_PLAYKERNEL
-Bank2_KernelBank
-    ds.b 4, 0
-    ds.b 2, 1
-    ds.b 1, 3
 
     ORG BANK2_ORG + $ff6-BS_SIZEOF
     RORG BANK2_RORG + $ff6-BS_SIZEOF

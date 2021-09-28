@@ -58,64 +58,22 @@ ScreenBotY      SET BankVars+3
 ScreenTopY      SET BankVars+4
 
 CurrEnd         SET BankVars+5
-TempY           SET BankVars+6
+
+FlamesGfx       SET BankVars+6
+CasinoColor     SET BankVars+8
 
 ; bitmap rows: the bit positions indicate if there is a ship in the row
 ROW1_MASK       SET %00000100   ; maps arithmatic row 2
 ROW2_MASK       SET %00001000   ; maps arithmatic row 3
 ROW3_MASK       SET %00010000   ; maps arithmatic row 4
 ROW4_MASK       SET %00100000   ; maps arithmatic row 5
-ShipBitmap      SET BankVars+7
-
-FlamesGfx       SET BankVars+8
-CasinoColor     SET BankVars+10
+ShipBitmap      SET BankVars+9
 
 Bank1_Reset
     ; switch to bank 0 if we start here
     bit BANK0_HOTSPOT
 
-Bank1_LandingInit
-    lda #%00001000
-    sta REFP0
-    sta REFP1
-
-    lda #0
-    sta NUSIZ0
-    sta NUSIZ1
-    sta CasinoColor
-
-    ; -----
-    ; landing: -1, taking off: 1, full stop: 0
-    lda #-1
-    sta Direction
-
-    ; joystick delay
-    lda #INPUT_DELAY
-    sta InputTimer
-
-    lda #ROW_TOP
-    sta ScreenTopY
-    lda #ROW_BOT
-    sta ScreenBotY
-    lda #SHIP_TOP_Y
-    sta ShipY
-    lda #SHIP_BEG_X
-    sta ShipX
-
-    jsr Bank1_UpdateShip
-
-    lda #SOUND_ID_CRASH_LANDING
-    sta Arg1
-    jsr SoundPlay
-
-    lda #SOUND_ID_CRASH_LANDING
-    sta Arg1
-    jsr SoundPlay
-
-    sta HMCLR
-
-    SET_POINTER FlamesGfx, Bank1_FlamesGfx0
-
+Bank1_Init
     ; wait for overscan to finish
     TIMER_WAIT
 
@@ -229,9 +187,52 @@ Bank1_FrameLoop
 
     jmp Bank1_TopKernel         ; subroutine call
 
-KernelReturn
+Bank1_KernelReturn
     jsr Bank1_Overscan
     jmp Bank1_FrameLoop
+
+Bank1_LandingInit
+    lda #%00001000
+    sta REFP0
+    sta REFP1
+
+    lda #0
+    sta NUSIZ0
+    sta NUSIZ1
+    sta CasinoColor
+
+    ; -----
+    ; landing: -1, taking off: 1, full stop: 0
+    lda #-1
+    sta Direction
+
+    ; joystick delay
+    lda #INPUT_DELAY
+    sta InputTimer
+
+    lda #ROW_TOP
+    sta ScreenTopY
+    lda #ROW_BOT
+    sta ScreenBotY
+    lda #SHIP_TOP_Y
+    sta ShipY
+    lda #SHIP_BEG_X
+    sta ShipX
+
+    jsr Bank1_UpdateShip
+
+    lda #SOUND_ID_CRASH_LANDING
+    sta Arg1
+    jsr SoundPlay
+
+    lda #SOUND_ID_CRASH_LANDING
+    sta Arg1
+    jsr SoundPlay
+
+    sta HMCLR
+
+    SET_POINTER FlamesGfx, Bank1_FlamesGfx0
+    jmp Bank1_Init
 
 Bank1_VerticalBlank SUBROUTINE
     inc FrameCtr
@@ -597,7 +598,7 @@ Bank1_BottomKernel SUBROUTINE       ;        [52]
     sta COLUPF                      ; 3 (15)
     sta GRP0                        ; 3 (18)
     sta GRP1                        ; 3 (21)
-    jmp KernelReturn                ; 3 (24)
+    jmp Bank1_KernelReturn          ; 3 (24)
 
 Bank1_DepartKernel SUBROUTINE
     txa                             ; 2 (2)
@@ -643,7 +644,8 @@ Bank1_Overscan SUBROUTINE           ; 6 (27)
     stx InputTimer
 .NoUpdate
 
-    CALL_BANK PROC_BANK1_GAMEIO, 0, 1
+    ;CALL_BANK PROC_BANK1_GAMEIO, 0, 1
+    CALL_BANK Bank0_GameIO
 
 .Return
     TIMER_WAIT
@@ -820,7 +822,8 @@ Bank1_ReadJoystick SUBROUTINE
     pla
     pla
 
-    JUMP_BANK PROC_BANK1_INIT, 2, 1
+    ;JUMP_BANK PROC_BANK1_INIT, 2, 1
+    JUMP_BANK Bank2_Init
 
 .Return
     rts

@@ -26,8 +26,10 @@ Bank0_Init
     jsr Bank0_InitGlobals
     jsr Bank0_ClearSprites
 
-    CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
-    CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
+    ;CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
+    ;CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
+    CALL_BANK SoundClear
+    CALL_BANK AnimationClear
 
 Bank0_FrameStart SUBROUTINE
     VERTICAL_SYNC
@@ -241,7 +243,7 @@ Bank0_Overscan SUBROUTINE
 .JumpToBank
     pla
     pla
-    JUMP_BANK PROC_BANK0_LANDINGINIT, 1, 0
+    JUMP_BANK Bank1_LandingInit
 
 Bank0_BettingKernel SUBROUTINE
 	; 7 lines of vertical blank are reserved for additional setup
@@ -463,8 +465,7 @@ Bank0_BettingKernel SUBROUTINE
     sta PF0
     sta PF1
     jsr Bank0_ClearGraphicsOpts
-    ; saving 2 bytes of stack by jumping
-    JUMP_BANK PROC_BANK0_OVERSCAN, 2, 0
+    JUMP_BANK Bank2_Overscan
 
 Bank0_UpdateHighlights SUBROUTINE   ; 6 (6)
     ldx #0                          ; 2 (8)

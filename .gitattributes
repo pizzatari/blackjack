@@ -8,6 +8,7 @@
 *.sp text=crlf
 *.s text=crlf
 *.sprite text=crlf
+*.pl text=lf
 
 *.sprite -linguist-detectable
 *.sp -linguist-detectable

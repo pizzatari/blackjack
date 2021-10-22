@@ -19,6 +19,16 @@ NUM_TEST_RAND SET * - TestRandInts
 
     IF TEST_RAND_ON == 2
 TestCards
+    ; deal minimum value cards
+    ; 2 spades, 2 clubs, 2 hearts, 2 clubs, 2 clubs, 2 hearts
+    dc.b %00110010, %01010010, %11010010, %10010010, %00110010
+    ; 3 spades, 3 clubs, 3 hearts, 3 clubs, 3 clubs, 3 hearts
+    dc.b %00110011, %01010011, %11010011, %10010011, %00110011
+    ; 4 spades, 4 clubs, 4 hearts, 4 clubs, 4 clubs, 4 hearts
+    dc.b %00110100, %01010100, %11010100, %10010100, %00110100
+    ; 5 spades, 5 clubs, 5 hearts, 5 clubs, 5 clubs, 5 hearts
+    dc.b %00110101, %01010101, %11010101, %10010101, %00110101
+
     ; deal 6 cards per player
     dc.b $02, $12, $22, $32
     dc.b $03, $13, $33, $33

@@ -29,4 +29,3 @@ Bank1_FlamesGfx3
     dc.b %10101000
     dc.b %10010000
     ds.b ROW_HEIGHT+[ROW_HEIGHT-SHIP_HEIGHT],0
-

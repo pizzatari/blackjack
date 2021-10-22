@@ -35,34 +35,6 @@ Bank3_OptionsStr4
 	dc.b %00000000
 	dc.b %00000000
 Bank3_OptionsStr5 SET Bank3_BlankStr
-Bank3_BetStr
-Bank3_BetStr0
-	dc.b %11111101
-	dc.b %11001101
-	dc.b %11001101
-	dc.b %11111000
-	dc.b %11001000
-	dc.b %11111000
-	dc.b %11110000
-Bank3_BetStr1
-	dc.b %11100100
-	dc.b %10000100
-	dc.b %01100100
-	dc.b %11101110
-	dc.b %00000100
-	dc.b %00000000
-	dc.b %00000000
-Bank3_BetStr2
-	dc.b %00100000
-	dc.b %00000000
-	dc.b %00100000
-	dc.b %00110000
-	dc.b %10011000
-	dc.b %10011000
-	dc.b %01110000
-Bank3_BetStr3 SET Bank3_BlankStr
-Bank3_BetStr4 SET Bank3_BlankStr
-Bank3_BetStr5 SET Bank3_BlankStr
 Bank3_SplitStr
 Bank3_SplitStr0 SET Bank3_BlankStr
 Bank3_SplitStr1

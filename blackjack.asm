@@ -9,8 +9,8 @@
 ;              *title kernel & data
 ;              *betting kernel & data
 ;   Bank 1:     sound driver & data
-;               intermission vertical blank & overscan
-;              *intermission kernel & data
+;               cutscene vertical blank & overscan
+;              *cutscene kernel & data
 ;   Bank 2:     game vertical blank & overscan
 ;               game logic & data
 ;   Bank 3:    *game kernel & data
@@ -86,11 +86,17 @@ BANK3_HOTSPOT               = BANK0_HOTSPOT+3
 
 PIP_COLORS                  = 0
 
+NEW_PLAYER_CHIPS            = $1000     ; BCD value
+
 ; TEST_RAND_ON:
 ;   0 = off
 ;   1 = non-random numbers
 ;   2 = non-random cards
 TEST_RAND_ON                = 0
+; TEST_ENABLE_SPLIT: split is always enabled
+;   0 = off
+;   1 = on
+TEST_ENABLE_SPLIT           = 0
 
 FILLER_CHAR                 = $4f; $00
 
@@ -105,15 +111,19 @@ TIME_DISPLAY_OPT            = 4*76/8    ; TIM8T (38)
 TIME_DASH_SETUP             = 2*76/8    ; TIM8T (19)
 TIME_DASH_DRAW              = 8*76/8    ; TIM8T (76)
 TIME_CHIPS_POT              = 3*76/8    ; TIM8T (28.5)
-TIME_CARD_SETUP             = 72        ; TIM8T (72)
+TIME_CARD_SETUP             = 8*76/8    ; TIM8T 
 TIME_CARD_HOLE_SETUP        = 2*76/8    ; TIM8T (19)
 TIME_CARD_FLIP_SETUP        = 3*76/8    ; TIM8T (19)
 TIME_CHIP_MENU_SETUP        = 3*76/8    ; TIM8T (19)
 TIME_CHIP_DENOM             = 6*76/8    ; TIM8T (57)
 TIME_STATUS_BAR             = 4*76/8    ; TIM8T (38)
 
-INPUT_DELAY                 = 30        ; num frames
-INPUT_DELAY_BETTING         = 10        ; num frames
+INPUT_DELAY                 = 30
+INPUT_DELAY_TITLE           = 20
+INPUT_DELAY_BETTING         = 10
+INPUT_DELAY_WIN             = 255
+INPUT_DELAY_LOSE            = 255
+INPUT_DELAY_FREQ            = %00010000
 
 NUSIZE_3_MEDIUM             = %00000110
 NUSIZE_3_CLOSE              = %00000011
@@ -122,7 +132,7 @@ NUSIZE_3_CLOSE              = %00000011
 SPRITE_WIDTH                = 8
 
 ; Game sections
-MSG_ROW_HEIGHT              = 21
+MSG_ROW_HEIGHT              = 23
 DLR_ROW_HEIGHT              = 50
 
 ; Objects
@@ -189,8 +199,6 @@ DASH_START_SELECTION        = DASH_HIT_IDX
 NUM_PLAYERS                 = 2
 NUM_HANDS                   = 3
 
-NEW_PLAYER_CHIPS            = $1000     ; BCD value
-
 ; Player hand selector
 PLAYER1_IDX                 = 0         ; player's 1st hand
 PLAYER2_IDX                 = 1         ; player's second split hand
@@ -205,16 +213,25 @@ DEALER_CARDS_OFFSET         = NUM_VISIBLE_CARDS * DEALER_IDX
     SEG.U ram
     ORG $80
 
+; Index into Bank*_KernelTable
+KN_TITLE                    = 0
+KN_BETTING                  = 1
+KN_INTRO                    = 2
+KN_LOSE                     = 3
+KN_WIN                      = 4
+KN_PLAY                     = 5
+      
 ; Variables global to the all banks
 GlobalVars
-      
+
 ; Game state selects which handler is executed on the current frame.
-GS_TITLE_SCREEN             = 0
-GS_NEW_GAME                 = 1
-GS_PLAYER_BET               = 2
-GS_PLAYER_BET_DOWN          = 3
-GS_PLAYER_BET_UP            = 4
-GS_OPEN_DEAL1               = 5
+GS_NONE                     = 0
+GS_NEW_GAME                 = 1     ;-----
+GS_PLAYER_BET               = 2     ; Betting kernel states
+GS_PLAYER_BET_DOWN          = 3     ;
+GS_PLAYER_BET_UP            = 4     ;-----
+
+GS_OPEN_DEAL1               = 5     ; Play kernel states
 GS_OPEN_DEAL2               = 6
 GS_OPEN_DEAL3               = 7
 GS_OPEN_DEAL4               = 8
@@ -240,21 +257,26 @@ GS_DEALER_PRE_HIT           = 27    ; Dealer game states must be sorted and
 GS_DEALER_HIT               = 28    ; positioned after player game states.
 GS_DEALER_POST_HIT          = 29    ;
 GS_DEALER_HAND_OVER         = 30    ;-----
-GS_GAME_OVER                = 31
-GS_GAME_OVER_WAIT           = 32
-GS_BROKE_PLAYER             = 33
-GS_BROKE_BANK               = 34
-GS_MAX                      = GS_BROKE_BANK
-GS_START_STATE              = GS_TITLE_SCREEN
+
+GS_GAME_OVER                = 31    ;-----
+GS_GAME_OVER_WAIT           = 32    ; Game over states
+GS_BROKE_PLAYER             = 33    ;
+GS_BROKE_BANK               = 34    ;
+GS_LOSE_KERNEL              = 35    ;
+GS_WIN_KERNEL               = 36    ;-----
+
+GS_MAX                      = GS_WIN_KERNEL
+GS_START_STATE              = GS_NONE
 GameState                   ds.b 1
 
+; Game states equal to or below will execute the betting kernel. The play
+; kernel executes for the remaining.
+BETTING_KERNEL_GS           = GS_PLAYER_BET_UP
+
 ; Game state flags affect how some graphic elements are displayed.
-GS_SHOW_BETTING_FLAG        = %10000000
-GS_SHOW_DASHBOARD_FLAG      = %01000000
-GS_SHOW_HOLE_CARD_FLAG      = %00100000
-GS_SHOW_DEALER_SCORE_FLAG   = %00010000
-GS_FLICKER_FLAG             = %00001000
-GS_PROMPT_IDX_MASK          = %00000111
+GS_SHOW_DASHBOARD_FLAG      = %10000000 ;
+GS_SHOW_DEALER_SCORE_FLAG   = %01000000 ;
+GS_PROMPT_IDX_MASK          = %00000111 ;
 ; Bank3_GameStateFlags
 
 ; Ephemeral values
@@ -281,39 +303,13 @@ JoySWCHA                    ds.b 1
 JoySWCHB                    ds.b 1
 JoyINPT4                    ds.b 1
 
-JOY_FIRE_BIT                = %00000100
-
-; Sound effect ID for the sound effect queue
-SOUND_ID_NONE               = 0
-SOUND_ID_ERROR              = 1
-SOUND_ID_NAVIGATE           = 2
-SOUND_ID_CARD_FLIP          = 3
-SOUND_ID_CHIPS              = 4
-SOUND_ID_HIT                = 5
-SOUND_ID_STAND              = 6
-SOUND_ID_DOUBLEDOWN         = 7
-SOUND_ID_SURRENDER          = 8
-SOUND_ID_INSURANCE          = 9
-SOUND_ID_SPLIT              = 10
-SOUND_ID_HAND_OVER          = 11
-SOUND_ID_SHUFFLE0           = 12
-SOUND_ID_SHUFFLE1           = 13
-SOUND_ID_NO_CHIPS           = 14
-SOUND_ID_PUSH               = 15
-SOUND_ID_WIN0               = 16
-SOUND_ID_WIN1               = 17
-SOUND_ID_LOST               = 18
-SOUND_ID_CRASH_LANDING      = 19
-;SOUND_ID_BANK_BROKE        = 20
+JOY_REL_FIRE                = %00001000
 
 ; Sound effect queue:
 ; Byte 0:       channel 0
 ; Byte 1:       channel 1
 SOUND_QUEUE_LEN             = 2
 SoundQueue                  ds.b SOUND_QUEUE_LEN
-
-SOUND_CURR_NOTE_MASK        = %11110000
-SOUND_LOOPS_MASK            = %00001111
 SoundCtrl                   ds.b SOUND_QUEUE_LEN
 
 ;
@@ -371,6 +367,8 @@ CurrState                   ds.b 1
 DiscardPile                 ds.b NUM_DISCARD_BYTES
 DealDepth                   ds.b 1
 
+SpritePtrs                  ds.w NUM_VISIBLE_CARDS
+
 ; -----------------------------------------------------------------------------
 ; Variables within this block are reset to zero upon starting a new game.
 MemBlockStart
@@ -379,6 +377,18 @@ MemBlockStart
 ; -----------------------------------------------------------------------------
 LocalVars
 
+#if 1
+FLIP_PLAYER_MASK            = %11000000
+FLIP_CARD_MASK              = %00111000
+FLIP_FRAME_MASK             = %00000111
+; Flip card animation state
+FLIP_FREQ                   = %00000111
+FLIP_NUM_FRAMES             = 4
+FLIP_END                    = 0
+
+FlipFrame                   ds.b 1
+
+#else
 ; Animation state
 ;
 ; The animation driver idenfies animation objects as a grid of col x row
@@ -402,6 +412,7 @@ ANIM_ID_FLIP_CARD           = 1
 ANIM_ID_FLIP_SUIT           = 2
 ;ANIM_ID_CHIP_STACK         = 3
 ;ANIM_ID_CHIP_SHINE         = 4
+#endif
 
 ; GameFlags bit flags
 ; Bit 7:    split taken
@@ -439,6 +450,7 @@ FLAGS_21                    = %00000100
 FLAGS_BUST                  = %00000010    ; not used for dealer
 FLAGS_LOST                  = %00000001    ; not used for dealer
 FLAGS_HANDOVER              = %00111111
+FLAGS_BROKE_BANK            = %10000000    ; valid only for the dealer
 PlayerFlags                 ds.b NUM_HANDS
 
 CARD_NULL                   = 0
@@ -453,8 +465,6 @@ PlayerNumCards              ds.b NUM_HANDS
 PlayerScore                 ds.b NUM_HANDS      ; total score
 PlayerPileScore             ds.b NUM_HANDS      ; score of off screen cards
 
-; Rendering variables
-SpritePtrs                  ds.w NUM_VISIBLE_CARDS
 TempPtr                     ds.w 1
 TempPtr2                    ds.w 1
 
@@ -489,6 +499,13 @@ PAGE_CURR_BANK SET 3
     IFCONST TEST_RAND_ON
         IF TEST_RAND_ON > 0
             ECHO ""
-            ECHO "** Test cards enabled (", (TEST_RAND_ON)d, ")**"
+            ECHO "** Test cards enabled (", (TEST_RAND_ON)d, ") **"
         ENDIF
     ENDIF
+
+    IFCONST TEST_ENABLE_SPLIT
+        IF TEST_ENABLE_SPLIT > 0
+            ECHO "** Test split enabled (", (TEST_ENABLE_SPLIT)d, ") **"
+        ENDIF
+    ENDIF
+

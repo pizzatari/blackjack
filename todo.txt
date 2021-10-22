@@ -3,8 +3,6 @@ TODO List
 
 Tasks:
     User Interface:
-    * Fix line count problems introduced since last update
-    * Make denominations reflect the number of player chips
     * Pip colors
     * Adjust text alignment
     * See if PlayKernel can be optimized further
@@ -22,6 +20,8 @@ Tasks:
       The dealer dealt until 22!
 
 Bugs:
+    * Verify insurance is working correctly when the player loses.
+
     * Doubledown and split must be disallowed when dealer has blackjack
     * Split hands must deal two cards before player makes a move,
       otherwise a doubledown could never bust
@@ -39,6 +39,8 @@ Animation:
     * Consider re-implementing the animation queue using the task queue.
 
 Done:
+    * Made denominations reflect the number of player chips
+    * Fixed line count problems introduced since last update
     * Re-shuffle the cards when the number of decks change.
     * DealCard is not correctly restricting the dealt cards to the number of decks.
     * Expanded task data structures from a nibble to a byte to support

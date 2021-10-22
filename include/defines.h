@@ -18,4 +18,3 @@ JOY1_LEFT_MASK              = %00000100
 JOY1_DOWN_MASK              = %00000010
 JOY1_UP_MASK                = %00000001
 
-JOY_REL_FIRE                = %00001000

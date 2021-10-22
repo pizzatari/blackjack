@@ -54,8 +54,6 @@ Bank{1}_GetBetMenu SUBROUTINE   ; 6 (6)
 ; Outputs:
 ; -----------------------------------------------------------------------------
 Bank{1}_SetBetMenu SUBROUTINE
-#if 1
-    ; uses less RAM
     tay
     lda CurrState
     and #~CURR_BET_MENU_MASK
@@ -63,13 +61,6 @@ Bank{1}_SetBetMenu SUBROUTINE
     tya
     ora CurrState
     sta CurrState
-#else
-    ; more efficient
-    lda CurrState
-    and #~CURR_BET_MENU_MASK
-    ora Arg1
-    sta CurrState
-#endif
     rts
 
 ; -----------------------------------------------------------------------------

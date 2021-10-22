@@ -1,3 +1,102 @@
+; -----------------------------------------------------------------------------
+; Start of bank 1
+; -----------------------------------------------------------------------------
+    SEG Bank1
+
+    ORG BANK1_ORG, FILLER_CHAR
+    RORG BANK1_RORG
+
+; Kernel row extents (starting positions)
+ROW_HEIGHT          = 32
+ROW6                = 252
+ROW5                = 256-[ROW_HEIGHT*2]
+ROW4                = ROW5-ROW_HEIGHT-1
+ROW3                = ROW4-ROW_HEIGHT
+ROW2                = ROW3-ROW_HEIGHT
+ROW1                = ROW2-ROW_HEIGHT
+ROW0                = ROW1-1
+ROW_TOP             = ROW6
+ROW_BOT             = ROW0
+
+SCR_BEG_TOP         = ROW6
+SCR_BEG_BOT         = ROW0
+SCR_END_TOP         = ROW5+1
+SCR_END_BOT         = 3
+
+CASINO_POS_X        = 110
+SHIP_BEG_X          = 23 + 137
+SHIP_END_X          = 23 + 61
+SHIP_BEG_Y          = 140
+SHIP_END_Y          = 84
+
+SHIP_ZOOM_Y         = ROW4-16       ; Y coordinate when zooming is triggered
+SHIP_WIN_END_X      = SCREEN_WIDTH-8; X coordinate when departing ship stops
+SHIP_WIN_END_Y      = ROW5          ; Y coordinate when departing ship stops
+
+SHIP_UPDATE_FREQ    = %00000011
+FAST_UPDATE_FREQ    = %00000001
+FLAMES_UPDATE_FREQ  = %00011000
+SCROLL_UPDATE_FREQ  = %00000011
+CASINO_UPDATE_FREQ  = %00011111
+MSGTEXT_UPDATE_FREQ = %00000011
+
+CASINO_BEG_COLOR    = $10
+CASINO_END_COLOR    = $1e
+
+MSGTXT_BEG_COLOR   = COLOR_DGRAY
+MSGTXT_END_COLOR   = COLOR_WHITE
+
+; -----------------------------------------------------------------------------
+; Local Variables
+; -----------------------------------------------------------------------------
+ShipX               SET BankVars
+ShipY               SET BankVars+1      ; bottom position
+Direction           SET BankVars+2
+
+ScreenBotY          SET BankVars+3
+ScreenTopY          SET BankVars+4
+
+CurrEnd             SET BankVars+5
+
+FlamesGfx           SET BankVars+6
+CasinoColor         SET BankVars+8
+
+; bitmap rows: the bit positions indicate if there is a ship in the row
+ROW1_MASK           SET %00000100   ; maps arithmatic row 2
+ROW2_MASK           SET %00001000   ; maps arithmatic row 3
+ROW3_MASK           SET %00010000   ; maps arithmatic row 4
+ROW4_MASK           SET %00100000   ; maps arithmatic row 5
+ShipBitmap          SET BankVars+9
+
+ShipUpdateFreq      SET BankVars+10
+
+MsgTextColor        SET BankVars+11
+
+INTRO_KERNEL_FLAG   = %00000001
+LOSE_KERNEL_FLAG    = %00000010
+WIN_KERNEL_FLAG     = %00000100
+SHIP_ZOOMING        = %00001000
+SHIP_DEPARTED_FLAG  = %00010000
+SceneState          SET BankVars+12
+
+ReturnAddr          SET BankVars+13
+
+Bank1_Reset
+    ; switch to bank 0 if we start here
+    bit BANK0_HOTSPOT
+
+Bank1_Init
+    lda #0
+    sta NUSIZ0
+    sta NUSIZ1
+    sta CasinoColor
+    sta JoyRelease
+    sta HMCLR
+
+    ; wait for overscan to finish
+    TIMER_WAIT
+
+; -----------------------------------------------------------------------------
 ;
 ; Layout of kernel rows (32 pixels tall).
 ;
@@ -18,66 +117,8 @@
 ; 5 | .................... |   : bottom (expand/shrink)
 ;   |                    FB| 0 :
 ;   '----------------------'
-
 ; -----------------------------------------------------------------------------
-; Start of bank 1
-; -----------------------------------------------------------------------------
-    SEG Bank1
-
-    ORG BANK1_ORG, FILLER_CHAR
-    RORG BANK1_RORG
-
-; Kernel row extents (starting positions)
-ROW_HEIGHT      = 32
-ROW6            = 252
-ROW5            = 256-[ROW_HEIGHT*2]
-ROW4            = ROW5-ROW_HEIGHT-1
-ROW3            = ROW4-ROW_HEIGHT
-ROW2            = ROW3-ROW_HEIGHT
-ROW1            = ROW2-ROW_HEIGHT
-ROW0            = ROW1-1
-ROW_TOP         = ROW6
-ROW_BOT         = ROW0
-
-CASINO_POS_X    = 110
-SHIP_BEG_X      = 23 + 137
-SHIP_END_X      = 23 + 60
-SHIP_TOP_Y      = 140
-
-CASINO_BEG_COLOR= $10
-CASINO_END_COLOR= $1e
-
-; -----------------------------------------------------------------------------
-; Local Variables
-; -----------------------------------------------------------------------------
-ShipX           SET BankVars
-ShipY           SET BankVars+1      ; bottom position
-Direction       SET BankVars+2
-
-ScreenBotY      SET BankVars+3
-ScreenTopY      SET BankVars+4
-
-CurrEnd         SET BankVars+5
-
-FlamesGfx       SET BankVars+6
-CasinoColor     SET BankVars+8
-
-; bitmap rows: the bit positions indicate if there is a ship in the row
-ROW1_MASK       SET %00000100   ; maps arithmatic row 2
-ROW2_MASK       SET %00001000   ; maps arithmatic row 3
-ROW3_MASK       SET %00010000   ; maps arithmatic row 4
-ROW4_MASK       SET %00100000   ; maps arithmatic row 5
-ShipBitmap      SET BankVars+9
-
-Bank1_Reset
-    ; switch to bank 0 if we start here
-    bit BANK0_HOTSPOT
-
-Bank1_Init
-    ; wait for overscan to finish
-    TIMER_WAIT
-
-Bank1_FrameLoop
+Bank1_CutSceneLoop
     VERTICAL_SYNC
 
     lda #TIME_VBLANK_TITLE+1
@@ -92,91 +133,28 @@ Bank1_FrameLoop
     lda #<[Bank1_BottomKernel-1]
     pha
 
-    ; Foreground ---------------------------------
-    ; row 1 (96->64)
-    lda #ROW1                   ; pass Y ending coordinate
-    pha
-    ; detect if the ship is overlapping the row
-    lda #ROW1_MASK
-    bit ShipBitmap
-    beq .NoShip4
-    lda #>[Bank1_GroundKernelSprite-1]
-    pha
-    lda #<[Bank1_GroundKernelSprite-1]
-    pha
-    jmp .Continue4
-.NoShip4
-    lda #>[Bank1_GroundKernel-1]
-    pha
-    lda #<[Bank1_GroundKernel-1]
-    pha
-.Continue4
+Debug
 
-    ; row 2 (128->96)
-    lda #ROW2                   ; pass Y ending coordinate
-    pha
+    lda #LOSE_KERNEL_FLAG
+    bit SceneState
+    bne MsgKernels
 
-    ; determine if ship has stopped moving
-    lda Direction
-    bne .ShipKernel
-    lda #>[Bank1_GroundKernelCasino-1]
-    pha
-    lda #<[Bank1_GroundKernelCasino-1]
-    pha
-    jmp .Continue3
-.ShipKernel
-    ; detect if the ship is overlapping the row
-    lda #ROW2_MASK
-    bit ShipBitmap
-    beq .NoShip3
-    lda #>[Bank1_GroundKernelSprite-1]
-    pha
-    lda #<[Bank1_GroundKernelSprite-1]
-    pha
-    jmp .Continue3
-.NoShip3
-    lda #>[Bank1_GroundKernel-1]
-    pha
-    lda #<[Bank1_GroundKernel-1]
-    pha
-.Continue3
+    lda #SHIP_DEPARTED_FLAG
+    bit SceneState
+    bne MsgKernels
 
-    ; Horizon ------------------------------------
-    ; row 3 (160->128)
-    ; detect if the ship is overlapping the row
-    lda #ROW3_MASK
-    bit ShipBitmap
-    beq .NoShip2
-    lda #>[Bank1_HorizonKernelSprite-1]
-    pha
-    lda #<[Bank1_HorizonKernelSprite-1]
-    pha
-    jmp .Continue2
-.NoShip2
-    lda #>[Bank1_HorizonKernel-1]
-    pha
-    lda #<[Bank1_HorizonKernel-1]
-    pha
-.Continue2
+IntroKernels
+    jmp Bank1_SetupForeground
+    jmp Bank1_SetupGround
+    jmp Bank1_SetupHorizon
+    jmp Bank1_SetupSky
 
-    ; Sky ----------------------------------------
-    ; row 4 (192->160)
-    ; detect if the ship is overlapping the row
-    lda #ROW4_MASK
-    bit ShipBitmap
-    beq .NoShip1
-    lda #>[Bank1_SkyKernelSprite-1]
-    pha
-    lda #<[Bank1_SkyKernelSprite-1]
-    pha
-    jmp .Continue1
-.NoShip1
-    lda #>[Bank1_SkyKernel-1]
-    pha
-    lda #<[Bank1_SkyKernel-1]
-    pha
-.Continue1
+MsgKernels
+    jmp Bank1_SetupForeground
+    jmp Bank1_SetupMsg
+    jmp Bank1_SetupSky
 
+Bank1_ReturnAddr
     ldx ScreenTopY
 
     TIMER_WAIT
@@ -187,34 +165,35 @@ Bank1_FrameLoop
 
     jmp Bank1_TopKernel         ; subroutine call
 
-Bank1_KernelReturn
+Bank1_CutSceneReturn
     jsr Bank1_Overscan
-    jmp Bank1_FrameLoop
+    jmp Bank1_CutSceneLoop
 
-Bank1_LandingInit
+Bank1_IntroInit
+    lda #INTRO_KERNEL_FLAG
+    sta SceneState
+    
     lda #%00001000
     sta REFP0
     sta REFP1
 
-    lda #0
-    sta NUSIZ0
-    sta NUSIZ1
-    sta CasinoColor
+    lda #SHIP_UPDATE_FREQ
+    sta ShipUpdateFreq
+
+    ; joystick delay
+    lda #INPUT_DELAY
+    sta InputTimer
 
     ; -----
     ; landing: -1, taking off: 1, full stop: 0
     lda #-1
     sta Direction
 
-    ; joystick delay
-    lda #INPUT_DELAY
-    sta InputTimer
-
-    lda #ROW_TOP
+    lda #SCR_BEG_TOP
     sta ScreenTopY
-    lda #ROW_BOT
+    lda #SCR_BEG_BOT
     sta ScreenBotY
-    lda #SHIP_TOP_Y
+    lda #SHIP_BEG_Y
     sta ShipY
     lda #SHIP_BEG_X
     sta ShipX
@@ -223,65 +202,150 @@ Bank1_LandingInit
 
     lda #SOUND_ID_CRASH_LANDING
     sta Arg1
-    jsr SoundPlay
+    sta Arg2
+    jsr SoundPlay2
+
+    SET_POINTER FlamesGfx, Bank1_FlamesGfx0
+    jmp Bank1_Init
+
+Bank1_LoseInit
+    lda #LOSE_KERNEL_FLAG
+    sta SceneState
+
+    lda #SHIP_UPDATE_FREQ
+    sta ShipUpdateFreq
+
+    ; -----
+    ; landing: -1, taking off: 1, full stop: 0
+    lda #0
+    sta FrameCtr
+    sta VDELP0
+    sta VDELP1
+    sta Direction
+
+    IF MSGTXT_BEG_COLOR != 0
+    lda #MSGTXT_BEG_COLOR
+    ENDIF
+    sta MsgTextColor
+
+    ; joystick delay
+    lda #INPUT_DELAY_LOSE
+    sta InputTimer
+
+    lda #SCR_BEG_TOP
+    sta ScreenTopY
+    lda #SCR_BEG_BOT
+    sta ScreenBotY
+    lda #SHIP_BEG_Y
+    sta ShipY
+    lda #SHIP_BEG_X
+    sta ShipX
+
+    SET_POINTER FlamesGfx, Bank1_FlamesGfx0
+    jmp Bank1_Init
+
+Bank1_WinInit
+    lda #WIN_KERNEL_FLAG
+    sta SceneState
+
+    lda #SHIP_UPDATE_FREQ
+    sta ShipUpdateFreq
+
+    lda #0
+    sta REFP0
+    sta REFP1
+    sta VDELP0
+    sta VDELP1
+    sta NUSIZ0
+    sta NUSIZ1
+
+    IF MSGTXT_BEG_COLOR != 0
+    lda #MSGTXT_BEG_COLOR
+    ENDIF
+    sta MsgTextColor
+
+    ; joystick delay
+    lda #INPUT_DELAY_WIN
+    sta InputTimer
+
+    ; -----
+    ; landing: -1, taking off: 1, full stop: 0
+    lda #1
+    sta Direction
+
+    lda #SCR_END_TOP
+    sta ScreenTopY
+    lda #SCR_END_BOT
+    sta ScreenBotY
+    lda #SHIP_END_Y
+    sta ShipY
+    cmp #SHIP_END_X+10
+    sta ShipX
 
     lda #SOUND_ID_CRASH_LANDING
     sta Arg1
     jsr SoundPlay
 
-    sta HMCLR
-
-    SET_POINTER FlamesGfx, Bank1_FlamesGfx0
+    SET_POINTER FlamesGfx, Bank1_ExhaustGfx
     jmp Bank1_Init
 
 Bank1_VerticalBlank SUBROUTINE
     inc FrameCtr
 
-    ; update animations every 4 frames
-    lda #%00000011
-    bit FrameCtr
-    bne .NoUpdate1
     jsr Bank1_ScrollScreen
-    jsr Bank1_UpdateShip
-.NoUpdate1
-
-    ; update every 32 frames
-    lda FrameCtr
-    and #%00011111
-    bne .NoUpdate2
     jsr Bank1_UpdateCasino
-.NoUpdate2
-
+    jsr Bank1_UpdateMsgText
+    jsr Bank1_UpdateShip
     jsr Bank1_SetupShipGfx
 
+    lda Direction
+    beq .Flipped
+    bmi .Flipped
+    ldx #OBJ_P1
+    lda ShipX
+    jsr Bank1_HorizPosition
+    ldx #OBJ_P0
+    lda ShipX
+    clc
+    adc #8
+    jsr Bank1_HorizPosition
+    jmp .Continue
+.Flipped
     ldx #OBJ_P0
     lda ShipX
     jsr Bank1_HorizPosition
-
     ldx #OBJ_P1
     lda ShipX
     clc
     adc #8
     jsr Bank1_HorizPosition
+.Continue
 
     lda #0
-    ldx #DEF_BG_COLOR
-    ldy #%00110001
+    sta VDELP0
+    sta VDELP1
+    sta NUSIZ0
+    sta NUSIZ1
+
     sta WSYNC
     sta HMOVE                       ; 3 (3)
-    stx COLUBK                      ; 3 (9)
-    sta GRP0                        ; 3 (12)
-    sta GRP1                        ; 3 (15)
-    ; pf reflected; ballsize = 8
-    sty CTRLPF                      ; 2 (17)
-    sty COLUPF                      ; 3 (20)
-    ; turn on v. delay for casino
-    sta VDELP1                      ; 3 (23)
-    lda CasinoColor                 ; 3 (26)
-    sta COLUP1                      ; 3 (29)
 
-    sta HMCLR                       ; 3 (32)
-    rts                             ; 6 (38)
+    sta GRP0                        ; 3 (6)
+    sta GRP1                        ; 3 (9)
+
+    ldx #DEF_BG_COLOR               ; 2 (11)
+    ldy #%00110001                  ; 2 (13)
+    stx COLUBK                      ; 3 (16)
+
+    ; pf reflected; ballsize = 8
+    sty CTRLPF                      ; 2 (18)
+    sty COLUPF                      ; 3 (21)
+
+    lda CasinoColor                 ; 3 (24)
+    sta COLUP1                      ; 3 (27)
+
+    sta HMCLR                       ; 3 (30)
+    rts                             ; 6 (36)
 
     PAGE_BOUNDARY_SET
 
@@ -365,6 +429,8 @@ Bank1_GroundKernel SUBROUTINE       ;   [59]
 
     rts                             ; 6 (45)
 
+    PAGE_BOUNDARY_CHECK "Bank1 kernels (1)"
+
 Bank1_SkyKernelSprite SUBROUTINE    ;        [15]
 .Kernel
     ; calc ship index
@@ -391,7 +457,51 @@ Bank1_SkyKernelSprite SUBROUTINE    ;        [15]
     bcs .Kernel                     ; 3 (39)
     rts                             ; 6 (45)
 
-    PAGE_BOUNDARY_CHECK "Bank1 kernels (1)"
+Bank1_SetupWinTextGfx SUBROUTINE    ; 6 (6)
+    lda #<Bank1_WinText0            ; 2 (8)
+    sta SpritePtrs                  ; 3 (11)
+    lda #<Bank1_WinText1            ; 2 (13)
+    sta SpritePtrs+2                ; 3 (16)
+    lda #<Bank1_WinText2            ; 2 (18)
+    sta SpritePtrs+4                ; 3 (21)
+    lda #<Bank1_WinText3            ; 2 (23)
+    sta SpritePtrs+6                ; 3 (26)
+    lda #<Bank1_WinText4            ; 2 (28)
+    sta SpritePtrs+8                ; 3 (31)
+    lda #<Bank1_WinText5            ; 2 (33)
+    sta SpritePtrs+10               ; 3 (36)
+
+    lda #>Bank1_WinText0            ; 2 (38)
+    sta SpritePtrs+1                ; 3 (41)
+    sta SpritePtrs+3                ; 3 (44)
+    sta SpritePtrs+5                ; 3 (47)
+    sta SpritePtrs+7                ; 3 (50)
+    sta SpritePtrs+9                ; 3 (53)
+    sta SpritePtrs+11               ; 3 (56)
+    rts                             ; 6 (62)
+
+Bank1_SetupLoseTextGfx SUBROUTINE   ; 6 (6)
+    lda #<Bank1_LoseText0           ; 2 (8)
+    sta SpritePtrs                  ; 3 (11)
+    lda #<Bank1_LoseText1           ; 2 (13)
+    sta SpritePtrs+2                ; 3 (16)
+    lda #<Bank1_LoseText2           ; 2 (18)
+    sta SpritePtrs+4                ; 3 (21)
+    lda #<Bank1_LoseText3           ; 2 (23)
+    sta SpritePtrs+6                ; 3 (26)
+    lda #<Bank1_LoseText4           ; 2 (28)
+    sta SpritePtrs+8                ; 3 (31)
+    lda #<Bank1_LoseText5           ; 2 (33)
+    sta SpritePtrs+10               ; 3 (36)
+
+    lda #>Bank1_LoseText0           ; 2 (38)
+    sta SpritePtrs+1                ; 3 (41)
+    sta SpritePtrs+3                ; 3 (44)
+    sta SpritePtrs+5                ; 3 (47)
+    sta SpritePtrs+7                ; 3 (50)
+    sta SpritePtrs+9                ; 3 (53)
+    sta SpritePtrs+11               ; 3 (56)
+    rts                             ; 6 (62)
 
     ORG BANK1_ORG + $300, FILLER_CHAR
     RORG BANK1_RORG + $300
@@ -552,6 +662,164 @@ Bank1_GroundKernelSprite SUBROUTINE ;   [56]
 
     PAGE_BOUNDARY_CHECK "Bank1 kernels (2)"
 
+Bank1_SetupForeground SUBROUTINE
+    ; Foreground ---------------------------------
+    ; row 1 (96->64)
+    lda #ROW1                   ; pass Y ending coordinate
+    pha
+
+    ; detect if the ship is overlapping the row
+    lda #ROW1_MASK
+    bit ShipBitmap
+    beq .NoShip
+    lda #>[Bank1_GroundKernelSprite-1]
+    pha
+    lda #<[Bank1_GroundKernelSprite-1]
+    pha
+    jmp .Continue
+.NoShip
+    lda #>[Bank1_GroundKernel-1]
+    pha
+    lda #<[Bank1_GroundKernel-1]
+    pha
+.Continue
+
+    lda #LOSE_KERNEL_FLAG | SHIP_DEPARTED_FLAG
+    bit SceneState
+    bne .Msg
+
+    lda #<[IntroKernels+3]
+    sta ReturnAddr
+    lda #>[IntroKernels+3]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+.Msg
+    lda #<[MsgKernels+3]
+    sta ReturnAddr
+    lda #>[MsgKernels+3]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+Bank1_SetupGround SUBROUTINE
+    ; row 2 (128->96)
+    lda #ROW2                   ; pass Y ending coordinate
+    pha
+
+    ; Ground ------------------------------------
+    ; determine if ship has stopped moving
+    lda Direction
+    bne .ShipKernel
+    lda #>[Bank1_GroundKernelCasino-1]
+    pha
+    lda #<[Bank1_GroundKernelCasino-1]
+    pha
+    jmp .Return
+
+.ShipKernel
+    ; detect if the ship is overlapping the row
+    lda #ROW2_MASK
+    bit ShipBitmap
+    beq .NoShip
+    lda #>[Bank1_GroundKernelSprite-1]
+    pha
+    lda #<[Bank1_GroundKernelSprite-1]
+    pha
+    jmp .Return
+
+.NoShip
+    lda #>[Bank1_GroundKernel-1]
+    pha
+    lda #<[Bank1_GroundKernel-1]
+    pha
+
+.Return
+    lda #LOSE_KERNEL_FLAG | SHIP_DEPARTED_FLAG
+    bit SceneState
+    bne .Msg
+
+    lda #<[IntroKernels+6]
+    sta ReturnAddr
+    lda #>[IntroKernels+6]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+.Msg
+    lda #<[MsgKernels+6]
+    sta ReturnAddr
+    lda #>[MsgKernels+6]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+Bank1_SetupHorizon SUBROUTINE
+    ; Horizon ------------------------------------
+    ; row 3 (160->128)
+    ; detect if the ship is overlapping the row
+    lda #ROW3_MASK
+    bit ShipBitmap
+    beq .NoShip
+    lda #>[Bank1_HorizonKernelSprite-1]
+    pha
+    lda #<[Bank1_HorizonKernelSprite-1]
+    pha
+    jmp .Continue
+.NoShip
+    lda #>[Bank1_HorizonKernel-1]
+    pha
+    lda #<[Bank1_HorizonKernel-1]
+    pha
+.Continue
+
+    lda #LOSE_KERNEL_FLAG | SHIP_DEPARTED_FLAG
+    bit SceneState
+    bne .Msg
+
+    lda #<[IntroKernels+9]
+    sta ReturnAddr
+    lda #>[IntroKernels+9]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+.Msg
+    lda #<[MsgKernels+6]
+    sta ReturnAddr
+    lda #>[MsgKernels+6]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+Bank1_SetupMsg SUBROUTINE
+    ; Message ------------------------------------
+    lda #>[Bank1_MsgKernel-1]
+    pha
+    lda #<[Bank1_MsgKernel-1]
+    pha
+
+    lda #<[MsgKernels+6]
+    sta ReturnAddr
+    lda #>[MsgKernels+6]
+    sta ReturnAddr+1
+    jmp (ReturnAddr)
+
+Bank1_SetupSky SUBROUTINE
+    ; Sky ----------------------------------------
+    ; row 4 (192->160)
+    ; detect if the ship is overlapping the row
+    lda #ROW4_MASK
+    bit ShipBitmap
+    beq .NoShip
+    lda #>[Bank1_SkyKernelSprite-1]
+    pha
+    lda #<[Bank1_SkyKernelSprite-1]
+    pha
+    jmp .Continue
+.NoShip
+    lda #>[Bank1_SkyKernel-1]
+    pha
+    lda #<[Bank1_SkyKernel-1]
+    pha
+.Continue
+    jmp Bank1_ReturnAddr
+
 Bank1_FlamesLo
     dc.b <Bank1_FlamesGfx0, <Bank1_FlamesGfx1, <Bank1_FlamesGfx2, <Bank1_FlamesGfx3
 Bank1_FlamesHi
@@ -564,6 +832,80 @@ Bank1_MotionJitterY
     INCLUDE_POWER_TABLE 1, 2, 8
 
     PAGE_BOUNDARY_SET
+Bank1_MsgKernel SUBROUTINE          ; 56 (56)
+    ; expects to consume row 2 and row 3 (128->96) (160->128)
+    ldy #SPRITE_GRAPHICS_IDX        ; 2 (2)
+    jsr Bank1_SetSpriteOptions
+    jsr Bank1_PositionSprites
+
+    lda #COLOR_BLACK                ; 2 (2)
+    sta COLUBK                      ; 3 (5)
+
+    lda #COLOR_WHITE                ; 2 (2)
+    ldx #0                          ; 2 (4)
+    ldy #3                          ; 2 (6)     3 copies close
+    sta WSYNC
+
+    sta COLUBK                      ; 3 (3)
+    stx COLUPF                      ; 3 (6)
+    stx REFP0                       ; 3 (9)
+    stx REFP1                       ; 3 (12)
+    sty VDELP0                      ; 3 (15)
+    sty VDELP1                      ; 3 (18)
+    sty NUSIZ0                      ; 3 (21)
+    sty NUSIZ1                      ; 3 (24)
+
+    lda #COLOR_DGRAY                ; 2 (26)
+    sta WSYNC
+    sta COLUBK                      ; 3 (3)
+
+    lda MsgTextColor                ; 3 (6)
+    sta COLUP0                      ; 3 (9)
+    sta COLUP1                      ; 3 (12)
+
+    sta WSYNC
+
+    ldy #Bank1_WinText_Height-1
+    DRAW_48_SPRITE SpritePtrs
+
+    sta WSYNC
+    sta WSYNC
+
+    lda #COLOR_WHITE                ; 2 (58)
+    ldx #0                          ; 2 (2)
+    sta WSYNC
+    sta COLUBK                      ; 3 (3)
+    stx GRP0                        ; 3 (5)
+    stx GRP1                        ; 3 (8)
+    stx NUSIZ0                      ; 3 (31)
+    stx NUSIZ1                      ; 3 (31)
+    stx VDELP0                      ; 3 (3)
+    stx VDELP1                      ; 3 (3)
+
+    lda #COLOR_BLACK                ; 2 (2)
+    sta WSYNC
+    sta COLUBK                      ; 3 (3)
+
+    ldx #ROW4-ROW_HEIGHT            ; 2 (7)
+.Kernel
+    lda Bank1_BGPalette,x           ; 4 (42)
+    sta WSYNC                       ; 3 (45)
+
+    sta COLUBK                      ; 3 (3)
+    lda Bank1_FGPalette,x           ; 4 (7)
+    sta COLUPF                      ; 3 (10)
+
+    lda Bank1_Playfield,x           ; 4 (14)
+    sta PF0                         ; 3 (17)
+    sta PF1                         ; 3 (20)
+    sta PF2                         ; 3 (23)
+
+    dex                             ; 2 (33)
+    cpx #ROW2+1                     ; 2 (35)
+    bcs .Kernel                     ; 3 (38)
+
+    rts                             ; 6 (43)
+
 Bank1_BottomKernel SUBROUTINE       ;        [52]
     lda #0                          ; 2 (33) [54]
     sta GRP0                        ; 3 (36) [57]
@@ -598,21 +940,7 @@ Bank1_BottomKernel SUBROUTINE       ;        [52]
     sta COLUPF                      ; 3 (15)
     sta GRP0                        ; 3 (18)
     sta GRP1                        ; 3 (21)
-    jmp Bank1_KernelReturn          ; 3 (24)
-
-Bank1_DepartKernel SUBROUTINE
-    txa                             ; 2 (2)
-    sec                             ; 2 (4)
-    sbc #ROW_HEIGHT                 ; 2 (6)
-    sta CurrEnd                     ; 3 (9)
-.Kernel
-    sta WSYNC                       ; 3 (14)
-    stx COLUBK                      ; 3 (3)
-    dex                             ; 2 (5)
-    cpx CurrEnd                     ; 3 (8)
-    bne .Kernel                     ; 3 (11)
-
-    rts                             ; 6 (6)
+    jmp Bank1_CutSceneReturn        ; 3 (24)
 
     PAGE_BOUNDARY_CHECK "Bank1 kernels (3)"
 
@@ -625,33 +953,27 @@ Bank1_Overscan SUBROUTINE           ; 6 (27)
     stx VBLANK                      ; 3 (5)
 
     jsr SoundTick               
+
     jsr Bank1_ReadSwitches
 
     ; update joystick timer
     ldx InputTimer
-    bne .DecReturn
+    beq .Read
+    dex
+    stx InputTimer
+    jmp .Return
+.Read
     jsr Bank1_ReadJoystick
-    jmp .Return
-.DecReturn
-    dex
-    stx InputTimer
-    jmp .Return
-
-    ; update joystick timer
-    ldx InputTimer
-    beq .NoUpdate
-    dex
-    stx InputTimer
-.NoUpdate
-
-    ;CALL_BANK PROC_BANK1_GAMEIO, 0, 1
-    CALL_BANK Bank0_GameIO
 
 .Return
     TIMER_WAIT
     rts
 
 Bank1_ScrollScreen SUBROUTINE
+    lda #SCROLL_UPDATE_FREQ
+    bit FrameCtr
+    bne .Return
+
     ; do nothing when Direction == 0
     lda Direction
     beq .Return
@@ -659,7 +981,7 @@ Bank1_ScrollScreen SUBROUTINE
 
     ; up
     lda ScreenTopY
-    cmp #ROW_TOP
+    cmp #SCR_BEG_TOP
     beq .Return
 
     inc ScreenTopY
@@ -669,11 +991,42 @@ Bank1_ScrollScreen SUBROUTINE
     ; down
 .Down
     lda ScreenTopY
-    cmp #ROW5+1
+    cmp #SCR_END_TOP
     beq .Return
 
     dec ScreenTopY
     dec ScreenBotY
+
+.Return
+    rts
+
+Bank1_UpdateMsgText SUBROUTINE
+    ; update wintext color cycle
+    lda FrameCtr
+    and #MSGTEXT_UPDATE_FREQ
+    bne .Return
+
+    lda #LOSE_KERNEL_FLAG
+    bit SceneState
+    beq .CheckDeparted
+
+    jsr Bank1_SetupLoseTextGfx
+    jmp .UpdateColor
+    
+.CheckDeparted
+    lda #SHIP_DEPARTED_FLAG
+    bit SceneState
+    beq .Return
+
+    jsr Bank1_SetupWinTextGfx
+
+.UpdateColor
+    ldx MsgTextColor
+    cpx #MSGTXT_END_COLOR
+    bcs .Return
+
+    inx
+    stx MsgTextColor
 
 .Return
     rts
@@ -683,6 +1036,11 @@ Bank1_ScrollScreen SUBROUTINE
 ; * move p1 object when it's rendering flames
 ; * position objects
 Bank1_UpdateCasino SUBROUTINE
+    ; update casino color cycle
+    lda FrameCtr
+    and #CASINO_UPDATE_FREQ
+    bne .Return
+
     lda Direction
     bne .Return
 
@@ -705,32 +1063,40 @@ Bank1_UpdateCasino SUBROUTINE
 
 Bank1_UpdateShip SUBROUTINE
     lda FrameCtr
+    and ShipUpdateFreq
+    beq .Continue1
+    rts
     
+.Continue1
+    lda #SHIP_DEPARTED_FLAG
+    bit SceneState
+    beq .Continue2
+    rts
+
+.Continue2
+    ; check if ship is at rest
     lda Direction
-    beq .Return
+    bne .Move
+    rts
 
-    ; move the ship horizontally
-    lda ShipX
-    cmp #SHIP_END_X+1
-    bcc .AtRest
+.Move
+    bpl .MoveUp
+    jsr Bank1_MoveDown
+    jmp .Update
+.MoveUp
+    jsr Bank1_MoveUp
 
-    lda #1<<4
-    sta HMP0
-    dec ShipX
+.Update
+    lda #SHIP_DEPARTED_FLAG
+    bit SceneState
+    beq .Map
+    lda #0
+    sta ShipBitmap
+    rts
 
-    ; move the ship vertically
-    lda FrameCtr
-    and #%00011110
-    lsr
-    tax
-
-    ; using a table for vertical motion jitter
-    clc
-    lda ShipY
-    adc Bank1_MotionJitterY,x
-    sta ShipY
-
+.Map
     ; update bitmap with bottom position
+    lda ShipY
     and #%11100000
     lsr
     lsr
@@ -740,7 +1106,6 @@ Bank1_UpdateShip SUBROUTINE
     tax
     lda Bank1_Pow2,x
     sta ShipBitmap
-
     ; update bitmap with top position
     clc
     lda ShipY
@@ -755,15 +1120,72 @@ Bank1_UpdateShip SUBROUTINE
     lda Bank1_Pow2,x
     ora ShipBitmap
     sta ShipBitmap
+    rts
 
+Bank1_MoveDown SUBROUTINE
+    ; move the ship left until the stopping point
+    lda ShipX
+    cmp #SHIP_END_X
+    bcs .MoveDown
+    lda #0
+    sta Direction
+    rts
+
+.MoveDown
+    ; move the ship down
+    dec ShipX
+
+    ; apply motion jitter in Y direction
+    lda FrameCtr
+    and #%00011110
+    lsr
+    tax
+    ;clc        ; carry is already 0
+    lda ShipY
+    adc Bank1_MotionJitterY,x
+    sta ShipY
+    rts
+
+Bank1_MoveUp SUBROUTINE
+    ; move ship up
+    ldy ShipY
+    cpy #SHIP_WIN_END_Y
+    bcs .AtRest
+    inc ShipY
+
+    cpy #SHIP_ZOOM_Y
+    bcc .Return
+
+    ; move ship right
+    ldy ShipX
+    cpy #SHIP_WIN_END_X
+    bcs .AtRest
+    inc ShipX
+
+    lda #SHIP_ZOOMING
+    bit SceneState
+    bne .Return
+
+    ora SceneState
+    sta SceneState
+
+    lda #FAST_UPDATE_FREQ
+    sta ShipUpdateFreq
+
+    lda #SOUND_ID_FLYING
+    sta Arg1
+    sta Arg2
+    jsr SoundPlay2
+
+.Return
     rts
 
 .AtRest
-.Return
+    lda #SHIP_DEPARTED_FLAG
+    ora SceneState
+    sta SceneState
     lda #0
-    sta HMP0
     sta Direction
-
     rts
 
 Bank1_SetupShipGfx SUBROUTINE
@@ -771,9 +1193,14 @@ Bank1_SetupShipGfx SUBROUTINE
     ldx #0
     stx NUSIZ1
     
+    lda Direction
+    beq .Animate
+    bpl .Return
+
+.Animate
     ; animate flames
     lda FrameCtr
-    and #%00011000
+    and #FLAMES_UPDATE_FREQ
     lsr
     lsr
     lsr
@@ -783,7 +1210,7 @@ Bank1_SetupShipGfx SUBROUTINE
     lda Bank1_FlamesHi,y
     sta FlamesGfx+1
 
-    ; set up mask table indexes
+.Return
     rts
 
 ; -----------------------------------------------------------------------------
@@ -813,24 +1240,54 @@ Bank1_ReadJoystick SUBROUTINE
 
     jsr SoundClear
 
-    lda #0
-    sta InputTimer
-
     ; reset stack
     pla
     pla
     pla
     pla
 
-    ;JUMP_BANK PROC_BANK1_INIT, 2, 1
+    lda GameState
+    cmp #GS_LOSE_KERNEL
+    beq .GotoTitle
     JUMP_BANK Bank2_Init
 
 .Return
     rts
 
+.GotoTitle
+    lda #GS_NONE
+    sta GameState
+    JUMP_BANK Bank0_ResetLostGame
+
     ; -------------------------------------------------------------------------
     include "../atarilib/lib/sound.asm"
     include "sys/bank1_audio.asm"
+
+; -----------------------------------------------------------------------------
+; Desc:     Sets the sprite pointers to the same sprite character given by the
+;           16 bit address.
+; Inputs:   Y register
+; (SPRITE_GRAPHICS_IDX, SPRITE_CARDS_IDX, SPRITE_BET_IDX, SPRITE_STATUS_IDX)
+; Ouputs:
+; -----------------------------------------------------------------------------
+Bank1_SetSpriteOptions SUBROUTINE
+    lda Bank1_SpriteSize,y
+    sta NUSIZ0
+    sta NUSIZ1
+    lda Bank1_SpriteDelay,y
+    sta VDELP0
+    sta VDELP1
+    rts
+
+    INCLUDE_SPRITE_OPTIONS 1
+    include "bank1/gen/lose-text.sp"
+
+    ; -------------------------------------------------------------------------
+    ORG BANK1_ORG + $a00, FILLER_CHAR
+    RORG BANK1_RORG + $a00
+
+    include "bank1/gen/win-text.sp"
+    INCLUDE_SPRITE_POSITIONING 1
 
     ; -------------------------------------------------------------------------
     ORG BANK1_ORG + $b00, FILLER_CHAR
@@ -843,6 +1300,7 @@ Bank1_ReadJoystick SUBROUTINE
     RORG BANK1_RORG + $c00
 
     include "bank1/gfx/foreground.asm"
+    include "bank1/gfx/exhaust.asm"
 
     ; -------------------------------------------------------------------------
     ORG BANK1_ORG + $d00, FILLER_CHAR
@@ -865,16 +1323,6 @@ Bank1_ReadJoystick SUBROUTINE
     INCLUDE_POSITIONING_SUBS 1
     include "bank1/gfx/sprites.asm"
     include "sys/bank1_ship_palette.asm"
-
-PROC_BANK1_GAMEIO 	= 0
-PROC_BANK1_INIT 	= 1
-
-Bank1_ProcTableLo
-    dc.b <Bank0_GameIO
-    dc.b <Bank2_Init
-Bank1_ProcTableHi
-    dc.b >Bank0_GameIO
-    dc.b >Bank2_Init
 
     ORG BANK1_ORG + $ff6-BS_SIZEOF
     RORG BANK1_RORG + $ff6-BS_SIZEOF

@@ -29,6 +29,7 @@ sub PrintUsage {
     print "# comment\n";
 	print "blank-ref: 0\n";
 	print "blank: BlankLabel\n";
+    print "height-def: 1\n";
 	print "label: SpriteName\n";
     print "    ....888....88888....888....8888...88.....88..8...\n";
     print "    ..88...88..88......88.88...88..88..88...88..888..\n";
@@ -110,12 +111,12 @@ while(!eof($ifh)) {
 	    print $ofh "$label$eol";
     }
 
-    #if ($print_height == 0) {
-        printf $ofh ("%s_HEIGHT = %d$eol", uc($label), scalar(@sp0_col));
-    #}
-
 	if ($print_blanks > 0 || CountOnes(@sp0_col) > 0) {
 		PrintSprite($ofh, "${label}0", @sp0_col);
+        if ($print_height > 0) {
+            #printf $ofh ("%s_HEIGHT = . - %s%s", $label, "${label}0", $eol);
+        }
+
 	} else {
 		print $ofh "${label}0 SET $blank_label$eol";
 	}
@@ -273,6 +274,12 @@ sub NextSprite($) {
                 $passthrough = 1;
 			    print $ofh "$1$eol";
             }
+            next LINE;
+        }
+
+		if ($line =~ m/^\s*height-def:\s*(\d+)$/i) {
+            $passthrough = 0;
+            $print_height = $1;
             next LINE;
         }
 

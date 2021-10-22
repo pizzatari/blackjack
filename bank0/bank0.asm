@@ -1,4 +1,6 @@
 ; -----------------------------------------------------------------------------
+; Start of bank 0
+; -----------------------------------------------------------------------------
     SEG Bank0
 
     ORG BANK0_ORG, FILLER_CHAR
@@ -10,7 +12,8 @@
 ; Kernel
 PalIdx1     SET LocalVars
 PalIdx2     SET LocalVars+1
-IntPtr		SET LocalVars+2
+
+IntPtr		= TempPtr
 
 ; -----------------------------------------------------------------------------
 ; Subroutines
@@ -25,11 +28,8 @@ Bank0_Reset
 Bank0_Init
     jsr Bank0_InitGlobals
     jsr Bank0_ClearSprites
-
-    ;CALL_BANK PROC_SOUNDQUEUECLEAR, 1, 0
-    ;CALL_BANK PROC_ANIMATIONCLEAR, 3, 0
     CALL_BANK SoundClear
-    CALL_BANK AnimationClear
+    TIMER_WAIT
 
 Bank0_FrameStart SUBROUTINE
     VERTICAL_SYNC
@@ -37,6 +37,14 @@ Bank0_FrameStart SUBROUTINE
     jsr Bank0_TitleKernel
     jsr Bank0_Overscan
     jmp Bank0_FrameStart
+
+Bank0_ResetLostGame
+    CLEAN_START
+    cli
+    ; delay the input in case the game was lost
+    lda #INPUT_DELAY_TITLE
+    sta InputTimer
+    jmp Bank0_Init 
 
 Bank0_VerticalBlank SUBROUTINE
     lda #TIME_VBLANK_TITLE
@@ -231,6 +239,7 @@ Bank0_Overscan SUBROUTINE
 
     ; check for button press
 	jsr Bank0_ReadJoystick
+
     lda #JOY_REL_FIRE
     bit JoyRelease
     bne .JumpToBank
@@ -243,21 +252,14 @@ Bank0_Overscan SUBROUTINE
 .JumpToBank
     pla
     pla
-    JUMP_BANK Bank1_LandingInit
+    JUMP_BANK Bank1_IntroInit
 
 Bank0_BettingKernel SUBROUTINE
-	; 7 lines of vertical blank are reserved for additional setup
-    lda #7*76/64
-    sta TIM64T
-
     ldy #MSG_BAR_IDX
     jsr Bank0_SetColors2
-    jsr Bank0_SetupOptionsPrompt           ; "Options"
-
-    SET_POINTER IntPtr, CurrBet
-
-	; 8 lines of vertical blank are reserved for additional setup
-    TIMER_WAIT
+    jsr Bank0_SetupOptionsPrompt        ; "Options" dashboard prompt
+    ;SET_POINTER IntPtr, CurrBet
+    TIMER_WAIT                          ; wait for vertical blank to finish
 
     lda #0
 	sta WSYNC
@@ -337,6 +339,7 @@ Bank0_BettingKernel SUBROUTINE
     jsr Bank0_DrawMessageBar
 
 	; bottom half (grey)
+    SET_POINTER IntPtr, CurrBet
     jsr Bank0_SetupInteger
 
     ldy #SPRITE_BET_IDX
@@ -379,7 +382,7 @@ Bank0_BettingKernel SUBROUTINE
     ldy #SPRITE_CARDS_IDX
     jsr Bank0_SetSpriteOptions
 
-    SLEEP_LINES 14
+    SLEEP_LINES 13
 
     lda #CHIP_COLOR
     sta COLUP0
@@ -401,7 +404,7 @@ Bank0_BettingKernel SUBROUTINE
     ldy #CHIPS_HEIGHT-1
     jsr Bank0_Draw6ColorSprites
 
-    SLEEP_LINES 14
+    SLEEP_LINES 13
 
     jsr Bank0_ClearGraphicsOpts
     lda #CHIP_MENU_COLOR
@@ -544,6 +547,26 @@ Bank0_ReadSwitches SUBROUTINE
 ;   0 = no event
 ; -----------------------------------------------------------------------------
 Bank0_ReadJoystick SUBROUTINE
+    ldx InputTimer
+    beq .Continue
+
+    ; decrement timer
+    lda #INPUT_DELAY_FREQ
+    bit FrameCtr
+    bne .NoDecrement
+    dex
+    stx InputTimer
+
+    ; throw away any trigger presses during the timeout
+    lda INPT4
+    sta JoyINPT4
+    lda #0
+    sta JoyRelease
+
+.NoDecrement
+    rts
+
+.Continue
     lda SWCHA
     tax                             ; save a copy: X = SWCHA
     eor JoySWCHA                    ; A = which bits have changed
@@ -693,8 +716,6 @@ Bank0_ReadKeypad SUBROUTINE
     inx
     stx KeyPress
 
-    ;lda #INPUT_DELAY
-    ;sta InputTimer
     rts
 
 #else
@@ -979,18 +1000,12 @@ Bank0_SetupMenuChips SUBROUTINE
     lda #<Bank0_Chip5
     sta SpritePtrs+10
 
-    ; don't flicker the selection on specific frames
+    ; decide when to flicker selected chip
     lda #%00011000
     bit FrameCtr
     bne .Return
 
-    ; only flicker when gamestate wants it
-    ldx GameState
-    lda Bank0_GameStateFlags,x
-    and #GS_FLICKER_FLAG
-    beq .Return
-
-    ; get currently selected bet
+    ; get currently selected chip
     jsr Bank0_GetBetMenu
 
     ; blank the currently selected sprite
@@ -1034,21 +1049,8 @@ Bank0_Draw48PixelSprite SUBROUTINE
 Bank0_GameIO SUBROUTINE
     jsr Bank0_ReadSwitches
 
-    ldx InputTimer
-    bne .DecTimer
     jsr Bank0_ReadJoystick
 	;jsr Bank0_TestKeypad
-    rts
-
-.DecTimer
-    ; only update 1 in 64 frame ticks
-    lda #%00100000
-    bit FrameCtr
-    bne .Return
-    dex
-    stx InputTimer
-
-.Return
     rts
 
 Bank0_InitGlobals SUBROUTINE
@@ -1086,6 +1088,8 @@ Bank0_InitGlobals SUBROUTINE
 
     include "../atarilib/lib/draw.asm"
 
+    PAGE_BOUNDARY_SET
+
 Bank0_Draw6Sprites SUBROUTINE
     DRAW_6_SPRITES SpritePtrs
     rts
@@ -1098,6 +1102,8 @@ Bank0_DrawTitleGraphic SUBROUTINE
     ldy #TITLE_LOGO_HEIGHT-1
     DRAW_RAINBOW_GRAPHIC Bank0_TitleSprite
     rts
+
+    PAGE_BOUNDARY_CHECK "Bank0 draw subroutines crossed a page boundary"
 
     ; -------------------------------------------------------------------------
     ORG BANK0_ORG + $a00, FILLER_CHAR
@@ -1158,49 +1164,6 @@ Bank0_ClearGraphicsOpts SUBROUTINE
     sta GRP1
     rts
 
-; Indexed by game state values.
-; bit 7:        show betting row
-; bit 6:        show dashboard
-; bit 5:        show dealer's hole card
-; bit 4:        show dealer's score
-; bit 3:        flicker the currently selected object
-; bit 0,1,2:    index into PromptMessages table
-Bank0_GameStateFlags
-    dc.b 0                  ; GS_TITLE_SCREEN
-    dc.b %10101001          ; GS_NEW_GAME
-    dc.b %10001001          ; GS_PLAYER_BET
-    dc.b %10001001          ; GS_PLAYER_BET_DOWN
-    dc.b %10001001          ; GS_PLAYER_BET_UP
-    dc.b %01000000          ; GS_OPEN_DEAL1
-    dc.b %01000000          ; GS_OPEN_DEAL2
-    dc.b %01000000          ; GS_OPEN_DEAL3
-    dc.b %01000000          ; GS_OPEN_DEAL4
-    dc.b %01000000          ; GS_OPEN_DEAL5
-    dc.b %01000010          ; GS_DEALER_SET_FLAGS
-    dc.b %01000010          ; GS_PLAYER_SET_FLAGS
-    dc.b %01000010          ; GS_PLAYER_TURN
-    dc.b %01000010          ; GS_PLAYER_PRE_HIT
-    dc.b %01000010          ; GS_PLAYER_HIT
-    dc.b %01000010          ; GS_PLAYER_POST_HIT
-    dc.b %01000011          ; GS_PLAYER_SURRENDER
-    dc.b %01000100          ; GS_PLAYER_DOUBLEDOWN
-    dc.b %01000101          ; GS_PLAYER_SPLIT
-    dc.b %01000101          ; GS_PLAYER_SPLIT_DEAL
-    dc.b %01000110          ; GS_PLAYER_INSURANCE
-    dc.b %00110000          ; GS_PLAYER_BLACKJACK
-    dc.b %00110000          ; GS_PLAYER_WIN
-    dc.b %00110000          ; GS_PLAYER_PUSH
-    dc.b 0                  ; GS_PLAYER_HAND_OVER
-    dc.b %00110000          ; GS_DEALER_TURN
-    dc.b %00110000          ; GS_DEALER_PRE_HIT
-    dc.b %00110000          ; GS_DEALER_HIT
-    dc.b %00110000          ; GS_DEALER_POST_HIT
-    dc.b %00110000          ; GS_DEALER_HAND_OVER
-    dc.b %00110000          ; GS_GAME_OVER
-    dc.b %00110000          ; GS_INTERMISSION
-    dc.b %00110000          ; GS_BROKE_BANK1
-    dc.b %00110000          ; GS_BROKE_BANK2
-
     INCLUDE_SPRITE_POSITIONING 0
     INCLUDE_SPRITE_OPTIONS 0
     INCLUDE_SPRITE_COLORS 0
@@ -1235,38 +1198,7 @@ Bank0_PromptMessageBlanks
     dc.b %00100001
     dc.b 0
 
-Bank0_PlayMenuSprite
-    dc.b <HelpHit           ; DASH_HIT_IDX
-    dc.b <HelpDoubledown    ; DASH_DOUBLEDOWN_IDX
-    dc.b <HelpSurrender     ; DASH_SURRENDER_IDX
-    dc.b <HelpInsurance     ; DASH_INSURANCE_IDX
-    dc.b <HelpSplit         ; DASH_SPLIT_IDX
-Bank0_CancelMenuSprite
-    dc.b <HelpCancel        ; DASH_HIT_IDX
-    dc.b <HelpDoubledown    ; DASH_DOUBLEDOWN_IDX
-    dc.b <HelpSurrender     ; DASH_SURRENDER_IDX
-    dc.b <HelpInsurance     ; DASH_INSURANCE_IDX
-    dc.b <HelpSplit         ; DASH_SPLIT_IDX
-
     INCLUDE_CHIP_DATA 0
-
-; Shared procedures
-PROC_BANK0_LANDINGINIT		= 0
-PROC_BANK0_OVERSCAN			= 1
-PROC_ANIMATIONCLEAR         = 2
-PROC_SOUNDQUEUECLEAR        = 3
-
-Bank0_ProcTableLo
-    dc.b <Bank1_LandingInit
-    dc.b <Bank2_Overscan
-    dc.b <AnimationClear
-    dc.b <SoundClear
-
-Bank0_ProcTableHi
-    dc.b >Bank1_LandingInit
-    dc.b >Bank2_Overscan
-    dc.b >AnimationClear
-    dc.b >SoundClear
 
 Bank0_KeyBits
     dc.b %00001110, %00001101, %00001011, %00000111

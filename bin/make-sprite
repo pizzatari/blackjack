@@ -13,9 +13,10 @@ use constant NUM_BITS_PER_CHAR => 8;
 use constant NUM_BYTES => (NUM_PIXELS_WIDE/NUM_BITS_PER_CHAR);
 
 sub PrintUsage {
-	printf "Usage: %s [ -h -r {1|0} -b {0|1} -pt {0|1} -br {0|1} -bl label -dir out-dir -o out-file] inputfile\n\n", basename($0);
+	printf "Usage: %s [ -h -H {0|1} -r {1|0} -b {0|1} -pt {0|1} -br {0|1} -bl label -dir out-dir -o out-file] inputfile\n\n", basename($0);
 
     print "Defaults:\n";
+    print "    -H  0            : print sprite height definitions\n\n";
     print "    -r  1            : print reversed order (upside down)\n";
     print "    -b  0            : print blank sprites (otherwise substitute with BlankSprite)\n";
     print "    -pt 0            : print pointer lookup table\n";
@@ -29,6 +30,7 @@ sub PrintUsage {
     print "# comment\n";
 	print "blank-ref: 0\n";
 	print "blank: BlankLabel\n";
+	print "height-def: 0\n";
 	print "label: SpriteName\n";
     print "    ....888....88888....888....8888...88.....88..8...\n";
     print "    ..88...88..88......88.88...88..88..88...88..888..\n";
@@ -38,7 +40,6 @@ sub PrintUsage {
     print "    ..88.888...88.....88...88..88..88.....8..........\n";
     print "    ..88..888..88888..88...88..8888.......8......8...\n";
     print "    .................................................\n\n";
-
 
 	print "Notes:\n";
 	print qq{    A 'label' is required. Multiple sprites are allowed.\n};
@@ -67,6 +68,8 @@ my $print_blanks = 0;
 my $print_pointer_table = 0;
 my $blank_label = DEFAULT_BLANK_LABEL;
 my $blank_ref = 0;
+my $print_ref = 0;
+my $print_height = 0;
 
 my %params = (
     "-o"    => \$out_file,
@@ -76,6 +79,7 @@ my %params = (
     "-pt"   => \$print_pointer_table,
     "-br"   => \$blank_ref,
     "-bl"   => \$blank_label,
+    "-H"    => \$print_height,
 );
 
 ParseArgs();
@@ -110,6 +114,9 @@ while(!eof($ifh)) {
 
 	if ($print_blanks > 0 || CountOnes(@sp0_col) > 0) {
 		PrintSprite($ofh, "${label}0", @sp0_col);
+        if ($print_height > 0) {
+            printf $ofh ("%s_Height = . - %s%s", $label, "${label}0", $eol);
+        }
 	} else {
 		print $ofh "${label}0 SET $blank_label$eol";
 	}
@@ -267,6 +274,12 @@ sub NextSprite($) {
                 $passthrough = 1;
 			    print $ofh "$1$eol";
             }
+            next LINE;
+        }
+
+		if ($line =~ m/^\s*height-def:\s*(\d+)$/i) {
+            $passthrough = 0;
+            $print_height = $1;
             next LINE;
         }
 

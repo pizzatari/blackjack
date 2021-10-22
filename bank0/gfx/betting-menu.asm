@@ -133,28 +133,28 @@ Bank0_DenomSprite1
     dc.b %00100111
 Bank0_DenomSprite2
     dc.b %00000000
-    dc.b %01110111
-    dc.b %01000001
-    dc.b %01110111
-    dc.b %00010100
-    dc.b %01110111
-Bank0_DenomSprite3
-    dc.b %00000000
     dc.b %11100000
     dc.b %01000000
     dc.b %01011011
     dc.b %11011011
     dc.b %01011011
-Bank0_DenomSprite4
+Bank0_DenomSprite3
     dc.b %00000000
     dc.b %11100110
     dc.b %01000110
     dc.b %01000000
     dc.b %11011011
     dc.b %01011011
-Bank0_DenomSprite5
+Bank0_DenomSprite4
     dc.b %00000000
     dc.b %11100000
+    dc.b %01000000
+    dc.b %01011011
+    dc.b %11000000
+    dc.b %01011011
+Bank0_DenomSprite5
+    dc.b %00000000
+    dc.b %11101100
     dc.b %01000000
     dc.b %01011011
     dc.b %11000000

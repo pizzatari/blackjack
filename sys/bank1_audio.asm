@@ -2,39 +2,138 @@
 ; SOUND DATA
 ; -----------------------------------------------------------------------------
 ; Variable length sound clip data: each note is 2 bytes
-;  tempo:       1 byte (bit mask)
-;  config:      1 byte (bit mask)
-;               bit 0-6:    loops (1-127) 0 disables sound
-;               bit 7:      number of channels (0=1 channel; 1=2 channels)
-;  note * N:    2 bytes per note: [volume:control], [frequency]
-;  terminator:  1 byte (0)
 ;
-;  2 byte note:
-;    byte 1: 0000 0000
-;      bits: 0-3    volume
-;      bits: 4-7    control
-;    byte 2: xxx 00000
-;      bits: 0-5    freqency
+; Header data:
+;   tempo mask, number of loops, number of notes
+; Note data:
+;  2 bytes per note: [volume << 4 | control], [frequency]
 ;
 
 #if VIDEO_MODE == VIDEO_NTSC
 
-SoundNone       ; SoundNone is not used, but defined in case it's dereferenced
-SoundNoChips
-SoundBankBroke
-    dc.b 0, 0, 0
+; Sound effect ID for the sound effect queue
+SOUND_ID_NONE           = 0
+SOUND_ID_ERROR          = 1
+SOUND_ID_CHIRP          = 2
+SOUND_ID_CARD_FLIP      = 3
+SOUND_ID_CHIPS          = 4
+SOUND_ID_HAND_OVER      = 5
+SOUND_ID_SHUFFLE0       = 6
+SOUND_ID_SHUFFLE1       = 7
+SOUND_ID_PUSH           = 8
+SOUND_ID_WIN0           = 9
+SOUND_ID_WIN1           = 10
+SOUND_ID_LOST           = 11
+SOUND_ID_CRASH_LANDING  = 12
+SOUND_ID_FLYING         = 13
+;SOUND_ID_NO_CHIPS      = 14
+;SOUND_ID_BANK_BROKE    = 15
 
-SoundError
-    dc.b %00000011      ; tempo mask (0 = frame rate; more 1's = slower)
-    dc.b 1              ; config: (# channels, # loops)
-    dc.b $8c, 11        ; note data: (AUDV, AUDC), (AUDF)
-    dc.b $8c, 21
-    dc.b $8c, 31
-    dc.b 0              ; null terminator
+SOUND_ID_NAVIGATE       = SOUND_ID_CHIRP
+SOUND_ID_HIT            = SOUND_ID_CHIRP
+SOUND_ID_STAND          = SOUND_ID_CHIRP
+SOUND_ID_DOUBLEDOWN     = SOUND_ID_CHIRP
+SOUND_ID_SURRENDER      = SOUND_ID_CHIRP
+SOUND_ID_INSURANCE      = SOUND_ID_CHIRP
+SOUND_ID_SPLIT          = SOUND_ID_CHIRP
 
-SoundCardFlip
-    dc.b 0
-    dc.b 1
+; tempo mask
+SoundTempo
+    dc.b 0                          ; SOUND_ID_NONE
+    dc.b %00000001                  ; SOUND_ID_ERROR
+    dc.b 0                          ; SOUND_ID_CHIRP
+    dc.b 0                          ; SOUND_ID_CARD_FLIP
+    dc.b 0                          ; SOUND_ID_CHIPS
+    dc.b 0                          ; SOUND_ID_HAND_OVER
+    dc.b %00000011                  ; SOUND_ID_SHUFFLE0
+    dc.b %00000001                  ; SOUND_ID_SHUFFLE1
+    dc.b %00000011                  ; SOUND_ID_PUSH
+    dc.b %00000011                  ; SOUND_ID_WIN0
+    dc.b %00000011                  ; SOUND_ID_WIN1
+    dc.b %00000011                  ; SOUND_ID_LOST
+    dc.b %00000111                  ; SOUND_ID_CRASH_LANDING
+    dc.b %00000111                  ; SOUND_ID_FLYING
+
+; number of loops (increments up to 0)
+SoundLoops
+    dc.b  0                         ; SOUND_ID_NONE
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_ERROR
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_CHIRP
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_CARD_FLIP
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_CHIPS
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_HAND_OVER
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_SHUFFLE0
+    dc.b -2 << SOUND_LOOPS_POS      ; SOUND_ID_SHUFFLE1
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_PUSH
+    dc.b -3 << SOUND_LOOPS_POS      ; SOUND_ID_WIN0
+    dc.b -3 << SOUND_LOOPS_POS      ; SOUND_ID_WIN1
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_LOST
+    dc.b -13 << SOUND_LOOPS_POS     ; SOUND_ID_CRASH_LANDING
+    dc.b -1 << SOUND_LOOPS_POS      ; SOUND_ID_FLYING
+
+; starting note index (increments up to 0)
+SoundNumNotes
+    dc.b  0                                 ; SOUND_ID_NONE
+    dc.b (-SoundErrorSize/2) & $0f          ; SOUND_ID_ERROR
+    dc.b (-SoundChirpSize/2) & $0f          ; SOUND_ID_CHIRP
+    dc.b (-SoundCardFlipSize/2) & $0f       ; SOUND_ID_CARD_FLIP
+    dc.b (-SoundChipsSize/2) & $0f          ; SOUND_ID_CHIPS
+    dc.b (-SoundHandOverSize/2) & $0f       ; SOUND_ID_HAND_OVER
+    dc.b (-SoundShuffle0Size/2) & $0f       ; SOUND_ID_SHUFFLE0
+    dc.b (-SoundShuffle1Size/2) & $0f       ; SOUND_ID_SHUFFLE1
+    dc.b (-SoundPushSize/2) & $0f           ; SOUND_ID_PUSH
+    dc.b (-SoundWin0Size/2) & $0f           ; SOUND_ID_WIN0
+    dc.b (-SoundWin1Size/2) & $0f           ; SOUND_ID_WIN1
+    dc.b (-SoundLostSize/2) & $0f           ; SOUND_ID_LOST
+    dc.b (-SoundCrashLandingSize/2) & $0f   ; SOUND_ID_CRASH_LANDING
+    dc.b (-SoundFlyingSize/2) & $0f         ; SOUND_ID_FLYING
+
+; note data pointers (offset -1 page for negative indexing)
+SoundTableLo
+    dc.b 0                          ; SOUND_ID_NONE
+    dc.b <(SoundError-256)          ; SOUND_ID_ERROR
+    dc.b <(SoundChirp-256)          ; SOUND_ID_CHIRP
+    dc.b <(SoundCardFlip-256)       ; SOUND_ID_CARD_FLIP
+    dc.b <(SoundChips-256)          ; SOUND_ID_CHIPS
+    dc.b <(SoundHandOver-256)       ; SOUND_ID_HAND_OVER
+    dc.b <(SoundShuffle0-256)       ; SOUND_ID_SHUFFLE0
+    dc.b <(SoundShuffle1-256)       ; SOUND_ID_SHUFFLE1
+    dc.b <(SoundPush-256)           ; SOUND_ID_PUSH
+    dc.b <(SoundWin0-256)           ; SOUND_ID_WIN0
+    dc.b <(SoundWin1-256)           ; SOUND_ID_WIN1
+    dc.b <(SoundLost-256)           ; SOUND_ID_LOST
+    dc.b <(SoundCrashLanding-256)   ; SOUND_ID_CRASH_LANDING
+    dc.b <(SoundFlying-256)         ; SOUND_ID_FLYING
+SoundTableHi
+    dc.b 0                          ; SOUND_ID_NONE
+    dc.b >(SoundError-256)          ; SOUND_ID_ERROR
+    dc.b >(SoundChirp-256)          ; SOUND_ID_CHIRP
+    dc.b >(SoundCardFlip-256)       ; SOUND_ID_CARD_FLIP
+    dc.b >(SoundChips-256)          ; SOUND_ID_CHIPS
+    dc.b >(SoundHandOver-256)       ; SOUND_ID_HAND_OVER
+    dc.b >(SoundShuffle0-256)       ; SOUND_ID_SHUFFLE0
+    dc.b >(SoundShuffle1-256)       ; SOUND_ID_SHUFFLE1
+    dc.b >(SoundPush-256)           ; SOUND_ID_PUSH
+    dc.b >(SoundWin0-256)           ; SOUND_ID_WIN0
+    dc.b >(SoundWin1-256)           ; SOUND_ID_WIN1
+    dc.b >(SoundLost-256)           ; SOUND_ID_LOST
+    dc.b >(SoundCrashLanding-256)   ; SOUND_ID_CRASH_LANDING
+    dc.b >(SoundFlying-256)         ; SOUND_ID_FLYING
+
+; notes are played in forward order
+SoundStart SET .
+    dc.b $8c, 11        ; note 1    [AUDV, AUDC], AUDF
+    dc.b $8c, 21        ; note 2    [AUDV, AUDC], AUDF
+    dc.b $8c, 31        ; note 3    [AUDV, AUDC], AUDF
+SoundErrorSize = . - SoundStart
+SoundError = .
+
+SoundStart SET .
+    dc.b $85, 6
+SoundChirpSize = . - SoundStart
+SoundChirp = .
+
+SoundStart SET .
     dc.b $1f, 20
     dc.b $2f, 14
     dc.b $5f, 20
@@ -44,11 +143,10 @@ SoundCardFlip
     dc.b $5f, 20
     dc.b $2f, 14
     dc.b $1f, 10
-    dc.b 0
+SoundCardFlipSize = . - SoundStart
+SoundCardFlip = .
 
-SoundChips
-    dc.b 0
-    dc.b 1
+SoundStart SET .
     dc.b $85, 22
     dc.b $2c, 8
     dc.b $65, 18
@@ -59,69 +157,50 @@ SoundChips
     dc.b $2c, 2
     dc.b $15, 6
     dc.b $2c, 1
-    dc.b 0
+SoundChipsSize = . - SoundStart
+SoundChips = .
 
-SoundNavigate
-SoundHit
-SoundStand
-SoundDoubledown
-SoundSurrender
-SoundInsurance
-SoundSplit
-    dc.b 0
-    dc.b 1
+SoundStart SET .
     dc.b $85, 6
-    dc.b 0
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+    dc.b $81, 16
+SoundHandOverSize = . - SoundStart
+SoundHandOver = .
 
-SoundHandOver
-    dc.b 0
-    dc.b 1
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b $81, 16
-    dc.b 0, 0
-
-SoundShuffle0
-    dc.b %00000111
-    dc.b 1
-    dc.b $a8, 9
-    dc.b $b8, 8
+SoundStart SET .
+    dc.b $68, 9
+    dc.b $a8, 8
     dc.b $c8, 7
-    dc.b 0, 0
+SoundShuffle0Size = . - SoundStart
+SoundShuffle0 = .
 
-SoundShuffle1
-    dc.b %00000001
-    dc.b 2
+SoundStart SET .
     dc.b $79, 18
     dc.b $89, 16
     dc.b $99, 14
     dc.b $a9, 12
     dc.b $b9, 10
     dc.b $c9, 8
-    dc.b 0, 0
+SoundShuffle1Size = . - SoundStart
+SoundShuffle1 = .
 
-;SoundNoChips
-;    dc.b 0, 0, 0
-
-SoundPush
-    dc.b %00000111
-    dc.b 1
+SoundStart SET .
     dc.b $8d, 12
     dc.b $8d, 10
     dc.b $8d, 14
     dc.b $8d, 12
     dc.b $8d, 10
     dc.b $8d, 14
-    dc.b 0
+SoundPushSize = . - SoundStart
+SoundPush = .
 
-SoundWin0
-    dc.b %00000011
-    dc.b 3
+SoundStart SET .
     dc.b $85, 14
     dc.b $85, 17
     dc.b $85, 14
@@ -129,22 +208,20 @@ SoundWin0
     dc.b $85, 14
     dc.b $85, 11
     dc.b $85, 19
-    dc.b 0
+SoundWin0 = .
+SoundWin0Size = . - SoundStart
 
-SoundWin1
-    dc.b %00000011
-    dc.b 3
+SoundStart SET .
     dc.b $85, 22
     dc.b $85, 14
     dc.b $85, 15
     dc.b $85, 16
     dc.b $85, 15
     dc.b $85, 16
-    dc.b 0
+SoundWin1Size = . - SoundStart
+SoundWin1 = .
 
-SoundLost
-    dc.b %00000011
-    dc.b 1
+SoundStart SET .
     dc.b $a7, 20
     dc.b $01, 0 
     dc.b $87, 25
@@ -157,51 +234,29 @@ SoundLost
     dc.b $47, 28
     dc.b $47, 28
     dc.b $47, 28
-    dc.b 0
+SoundLostSize = . - SoundStart
+SoundLost = .
 
-SoundCrashLanding
-    dc.b %00000011
-    dc.b 15
+SoundStart SET .
     dc.b $88, 15
     dc.b $88, 15
     dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    dc.b $88, 15
-    ;dc.b $88, 15
-    ;dc.b $88, 15
-    dc.b 0
+SoundCrashLandingSize = . - SoundStart
+SoundCrashLanding = .
 
-;SoundBankBroke
-;    dc.b 0, 0, 0
-
-; Sound effect lookup table
-SoundTable
-    dc.w SoundNone              ; SOUND_ID_NONE
-    dc.w SoundError             ; SOUND_ID_ERROR
-    dc.w SoundNavigate          ; SOUND_ID_NAVIGATE
-    dc.w SoundCardFlip          ; SOUND_ID_CARD_FLIP
-    dc.w SoundChips             ; SOUND_ID_CHIPS
-    dc.w SoundHit               ; SOUND_ID_HIT
-    dc.w SoundStand             ; SOUND_ID_STAND
-    dc.w SoundDoubledown        ; SOUND_ID_DOUBLEDOWN
-    dc.w SoundSurrender         ; SOUND_ID_SURRENDER
-    dc.w SoundInsurance         ; SOUND_ID_INSURANCE
-    dc.w SoundSplit             ; SOUND_ID_SPLIT
-    dc.w SoundHandOver          ; SOUND_ID_HAND_OVER
-    dc.w SoundShuffle0          ; SOUND_ID_SHUFFLE0
-    dc.w SoundShuffle1          ; SOUND_ID_SHUFFLE1
-    dc.w SoundNoChips           ; SOUND_ID_NO_CHIPS
-    dc.w SoundPush              ; SOUND_ID_PUSH
-    dc.w SoundWin0              ; SOUND_ID_WIN0
-    dc.w SoundWin1              ; SOUND_ID_WIN1
-    dc.w SoundLost              ; SOUND_ID_LOST
-    dc.w SoundCrashLanding      ; SOUND_ID_CRASH_LANDING
-    ;dc.w SoundBankBroke         ; SOUND_ID_BANK_BROKE
+SoundStart SET .
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+    dc.b $a8, 8
+SoundFlyingSize = . - SoundStart
+SoundFlying = .
 
 #endif
 
